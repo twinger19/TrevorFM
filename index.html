@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FREDIOHEAD FM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800;9..144,900&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <svg class="record" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+        <circle cx="12" cy="12" r="11" fill="none" stroke="currentColor" stroke-width="2"/>
+        <circle cx="12" cy="12" r="4" fill="var(--accent)"/>
+      </svg>
+      <span id="stationName">FREDIOHEAD FM</span>
+      <span class="show-now" id="showNow"></span>
+    </div>
+    <button class="icon-btn" id="settingsBtn" title="Settings" aria-label="Settings">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.5-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.4 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.5 2 1.5a7 7 0 0 0 0 2.4l-2 1.5 2 3.5 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.4-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.5-2-1.5c.1-.4.2-.8.2-1.2Z"/></svg>
+    </button>
+  </header>
+
+  <section class="setup" id="setupCard">
+    <h2>get on air_</h2>
+    <ol id="setupSteps">
+      <li data-step="clientId">Paste your Spotify Client ID in Settings</li>
+      <li data-step="login">Connect Spotify</li>
+      <li data-step="gemini">Paste your Gemini API key in Settings</li>
+      <li data-step="device">Open the Spotify desktop app, or play in this tab (Chrome)</li>
+    </ol>
+    <button id="loginBtn" class="solid">Connect Spotify</button>
+  </section>
+
+  <main id="deck" hidden>
+    <section class="stage">
+      <div class="art">
+        <svg class="burst" viewBox="0 0 100 100" aria-hidden="true">
+          <g id="burstRays"></g>
+          <circle cx="50" cy="50" r="12" fill="var(--accent)"/>
+        </svg>
+        <img id="art" alt="" hidden />
+      </div>
+      <div class="nowplaying">
+        <div class="np-row">
+          <p class="microlabel" id="npLabel">Now playing</p>
+          <p class="onair" id="onairChip" hidden><span class="dot"></span>on air now</p>
+        </div>
+        <h1 class="title idle" id="trackTitle">scanning the dial</h1>
+        <p class="artist"><span id="trackArtist">press power to tune in</span>
+          <button id="likeBtn" class="like" hidden aria-label="Save to Liked Songs" title="Save to your Liked Songs">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 21s-7.5-4.9-9.5-9.2C1 8.5 3 5 6.5 5c2 0 3.6 1.1 5.5 3.2C13.9 6.1 15.5 5 17.5 5 21 5 23 8.5 21.5 11.8 19.5 16.1 12 21 12 21Z"/></svg>
+          </button>
+        </p>
+        <p class="meta mono" id="metaStrip" hidden></p>
+        <p class="djline" id="djLine" hidden><span id="buddyMount"></span><span class="djwords"><span id="djText"></span><span class="cursor">▍</span></span></p>
+        <p class="tease microlabel" id="upNextTease" hidden></p>
+      </div>
+      <div class="lyrics" id="lyricsBox" hidden aria-hidden="true"><div class="lyrics-scroll" id="lyricsScroll"></div></div>
+      <nav class="rail">
+        <button class="rail-btn" data-drawer="schedule">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+          <span>Schedule</span>
+        </button>
+        <button class="rail-btn" data-drawer="timeline">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+          <span>Timeline</span>
+        </button>
+        <button class="rail-btn" data-drawer="booth">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+          <span>Booth</span>
+        </button>
+        <button class="rail-btn accent" data-drawer="request">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg>
+          <span>Request</span>
+        </button>
+      </nav>
+    </section>
+
+    <canvas class="waveform" id="waveform" aria-hidden="true"></canvas>
+
+    <section class="console">
+      <div class="power">
+        <p class="microlabel">Power</p>
+        <button id="startBtn" class="knob" aria-label="Tune in">
+          <span class="knob-mark"></span>
+        </button>
+      </div>
+      <div class="signal">
+        <p class="signal-label"><span class="mono strong">Signal</span> · <span class="mono" id="signalState">Standby</span></p>
+        <div class="dial">
+          <div class="dial-ticks"></div>
+          <div class="dial-needle" id="dialNeedle"></div>
+          <div class="dial-numbers mono"><span>0</span><span>50</span><span>100</span><span>150</span><span>200</span><span>250</span></div>
+        </div>
+        <div class="signal-sub">
+          <select id="deviceSelect" title="Playback device"></select>
+          <button id="skipBtn" class="text-btn" disabled>skip ▸</button>
+        </div>
+      </div>
+      <div class="volume">
+        <p class="microlabel">Volume</p>
+        <div class="vol-row">
+          <input type="range" id="volume" min="0" max="100" step="5" aria-label="Volume" />
+          <button id="muteBtn" class="text-btn" aria-label="Mute">mute</button>
+        </div>
+        <div class="dotgrid" aria-hidden="true"></div>
+      </div>
+    </section>
+  </main>
+
+  <aside id="drawer" hidden>
+    <div class="drawer-head">
+      <h2 id="drawerTitle">booth_</h2>
+      <button class="icon-btn" id="drawerClose" aria-label="Close">✕</button>
+    </div>
+    <div class="drawer-body">
+      <ul id="timelineList" hidden></ul>
+      <div id="boothView" hidden>
+        <div class="booth-tabs">
+          <button data-filter="all" class="active">All</button>
+          <button data-filter="dj">DJ</button>
+          <button data-filter="play">Tracks</button>
+        </div>
+        <ul id="log"></ul>
+      </div>
+      <form id="requestForm" hidden>
+        <p class="request-hint">Ask Fred for a song, an artist, or a vibe. Live, it plays next with an on-air shout-out; off air, it plays right away.</p>
+        <input id="requestInput" placeholder="e.g. some late-era Talk Talk" autocomplete="off" />
+        <button class="solid" type="submit">Send to the booth</button>
+        <p class="request-status mono" id="requestStatus" hidden></p>
+      </form>
+      <div id="scheduleView" hidden></div>
+    </div>
+  </aside>
+
+  <div id="tuneOverlay" hidden>
+    <p class="onair"><span class="dot"></span>on air now</p>
+    <button class="tune-play" id="tunePlay" aria-label="Tune in">
+      <svg viewBox="0 0 24 24" width="34" height="34" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+    </button>
+    <h2>Tap to tune in</h2>
+    <p class="tune-sub">audio is paused — tap anywhere to start listening</p>
+  </div>
+
+  <dialog id="settingsDialog">
+    <h2>settings_</h2>
+    <label>Station name <input id="setStationName" placeholder="FREDIOHEAD FM" /></label>
+    <label>Spotify Client ID <input id="setClientId" placeholder="from developer.spotify.com" /></label>
+    <label>Redirect URI to register in Spotify <input id="redirectUriShown" readonly onclick="this.select()" /></label>
+    <label>Gemini API key <input id="setGeminiKey" type="password" placeholder="from aistudio.google.com" /></label>
+    <label>DJ voice <select id="setVoice"></select></label>
+    <label>Duck volume while DJ talks <input type="range" id="setDuck" min="0" max="60" step="5" /></label>
+    <div class="dialog-actions">
+      <button id="testVoiceBtn" class="text-btn">Test voice</button>
+      <button id="reconnectBtn" class="text-btn">Reconnect Spotify</button>
+      <button id="saveSettingsBtn" class="solid">Save</button>
+    </div>
+    <p class="fine">Keys are stored only in this browser (localStorage). Nothing leaves your machine except calls to Spotify and Gemini.</p>
+  </dialog>
+
+  <script src="https://sdk.scdn.co/spotify-player.js"></script>
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>
