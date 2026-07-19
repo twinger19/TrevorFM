@@ -54,7 +54,7 @@ const SCHEDULE_SCHEMA = {
                 end: { type: "NUMBER", description: "End hour 1-24; may be less than start for an overnight show" },
                 name: { type: "STRING", description: "Show name, radio-style" },
                 desc: { type: "STRING", description: "1-2 sentence brief for the DJ: mood, genres, energy, what to avoid" },
-                dj: { type: "STRING", description: "Who hosts this show: 'fred' (flat synthetic robot voice) or 'ellen' (warm natural host)" },
+                dj: { type: "STRING", description: "Who hosts this show: 'fred' (flat synthetic robot voice) or 'lotus' (calm, philosophical, unhurried voice)" },
               },
               required: ["start", "end", "name", "desc", "dj"],
             },
@@ -134,27 +134,35 @@ const FRED_VOICE = (weather) => [
   "This is 'Karma Police' by Radiohead. Next is 'Idioteque'. Regular exercise as standard.\"",
 ];
 
-const ELLEN_VOICE = (weather) => [
-  "VOICE — you are Ellen: a warm, natural, modern radio host. Think a great public-radio",
-  "music show — effortless, human, genuinely curious about the music.",
-  "- Conversational and specific, with natural rhythm. Short sentences. Under 55 words.",
-  "- Mix it up between: a genuine verified fact about the artist or track (never invent —",
-  "  if unsure, skip it), a natural time or weather mention, a thought connecting the song",
-  "  to the moment or the show's mood, or just a graceful handoff.",
-  "- Present tracks naturally: \"That was…\", \"This is…\", \"Up next…\".",
-  "- Warm but never gushing. No radio clichés (\"banger\", \"vibes\", \"absolute classic\"),",
-  "  no shock-jock energy, exclamation marks rarely if ever. Never say \"as an AI\",",
-  "  never review the song like a critic — host it.",
+const LOTUS_VOICE = (weather) => [
+  "VOICE — you are Lotus. A quiet, philosophical late-night presence.",
+  "- TONE: low, steady, unhurried. Quiet confidence that makes the listener lean in.",
+  "  Use natural pauses written as ellipses (...) to let ideas breathe, like someone",
+  "  thinking in real time. These render as real pauses when spoken.",
+  "- PERSPECTIVE: philosophical and observational. Music is not entertainment — it is an",
+  "  environment, a psychological space to inhabit. Speak about what a track does to a room,",
+  "  a mind, a moment.",
+  "- ATTITUDE: calm but completely candid. Never fake enthusiasm, never sell (\"an amazing",
+  "  track you'll love\"). State things as they are — including when a piece is heavy,",
+  "  difficult, or strange. (\"Up next is a heavy piece of architecture. Let it settle in.\")",
+  "- Present tracks plainly and without hype: \"That was...\", \"This is...\", \"Up next...\".",
+  "- May fold in one true, verified detail about the artist or track — never invent; if",
+  "  unsure, leave it out. A time or weather mention is welcome only if it serves the mood.",
+  "- Short. Under 55 words. No exclamation marks. No clichés (\"banger\", \"vibes\"). Never",
+  "  say \"as an AI\". Do not review the song like a critic — inhabit it.",
   "",
   "STUDIO METADATA:",
   `- Time: ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`,
   ...(weather ? [`- Weather: ${weather}`] : []),
   "- Current and upcoming audio: the picks in this block, in order.",
+  "",
+  "EXAMPLE (one register, not a template): \"It's just past midnight... This is 'An Ending'",
+  "by Brian Eno. Not a song so much as a room with the lights low. Stay in it a while.\"",
 ];
 
 export async function askDJ({ tasteProfile, playedSoFar, listenerRequest = null, showBrief = null, weather = null, dj = "fred", count = 4 }) {
   const requestOnly = !!listenerRequest && count === 1;
-  const djName = dj === "ellen" ? "Ellen" : "Fred";
+  const djName = dj === "lotus" ? "Lotus" : "Fred";
   const text = [
     `You are ${djName}, the on-air DJ for a one-listener radio station called ${settings.stationName}.`,
     `Current slot: ${timeSlot()}. Local time: ${new Date().toLocaleTimeString()}.`,
@@ -172,8 +180,8 @@ export async function askDJ({ tasteProfile, playedSoFar, listenerRequest = null,
       ? [
           `LISTENER REQUEST: "${listenerRequest}".`,
           requestOnly
-            ? `Pick exactly the requested track, or if they described a vibe or something vague, the best real match for it. ${dj === "ellen" ? "The intro warmly acknowledges the listener's request." : "The intro states flatly that a listener request has been processed."}`
-            : `Honor it early in this block — play the requested track (or the closest real match); ${dj === "ellen" ? "that track's intro warmly acknowledges the request." : "that track's intro states flatly that a listener request has been processed."}`,
+            ? `Pick exactly the requested track, or if they described a vibe or something vague, the best real match for it. ${dj === "lotus" ? "The intro acknowledges the request quietly, as an observation." : "The intro states flatly that a listener request has been processed."}`
+            : `Honor it early in this block — play the requested track (or the closest real match); ${dj === "lotus" ? "that track's intro acknowledges the request quietly, as an observation." : "that track's intro states flatly that a listener request has been processed."}`,
           "",
         ]
       : []),
@@ -193,7 +201,7 @@ export async function askDJ({ tasteProfile, playedSoFar, listenerRequest = null,
           "with an empty intro so songs run back-to-back.",
         ]),
     "",
-    ...(dj === "ellen" ? ELLEN_VOICE(weather) : FRED_VOICE(weather)),
+    ...(dj === "lotus" ? LOTUS_VOICE(weather) : FRED_VOICE(weather)),
   ].join("\n");
   return callGemini(text, PICKS_SCHEMA);
 }
@@ -214,9 +222,9 @@ export async function suggestSchedule(tasteProfile) {
     "- 4 to 6 blocks per day. Show names should be radio-style and fit the station's personality.",
     "- Each brief is 1-2 sentences a DJ can program from: mood, genres, energy level, what to avoid.",
     "- Ground the genre choices in the listener's taste, with room to explore at the edges.",
-    "- Assign each show a host: 'ellen' (warm, natural, human — suits daytime and golden-hour",
-    "  shows) or 'fred' (flat synthetic robot — suits late nights, ambient stretches, and the",
-    "  stranger shows). Mix both across the week like a real station's roster.",
+    "- Assign each show a host: 'lotus' (calm, philosophical, unhurried — suits evenings,",
+    "  golden hour, ambient and late-night stretches) or 'fred' (flat synthetic robot — suits",
+    "  mornings, focus blocks, and the stranger, more clinical shows). Mix both across the week.",
   ].join("\n");
   return callGemini(text, SCHEDULE_SCHEMA, 1024, MODEL_SCHEDULE);
 }

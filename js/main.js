@@ -599,7 +599,7 @@ function blockForm(week, idx) {
     <input class="f-name" placeholder="Show name" />
     <div class="times">from <input class="f-start" type="number" min="0" max="23" /> :00
       to <input class="f-end" type="number" min="1" max="24" /> :00
-      · DJ <select class="f-dj"><option value="fred">Fred</option><option value="ellen">Ellen</option></select></div>
+      · DJ <select class="f-dj"><option value="fred">Fred</option><option value="lotus">Lotus</option></select></div>
     <textarea class="f-desc" placeholder="Brief for the DJ: mood, genres, energy, what to avoid"></textarea>
     <div class="row">
       <button class="text-btn f-delete">delete</button>
@@ -615,7 +615,7 @@ function blockForm(week, idx) {
     block.name = form.querySelector(".f-name").value.trim() || "Untitled Show";
     block.start = Math.max(0, Math.min(23, Number(form.querySelector(".f-start").value) || 0));
     block.end = Math.max(1, Math.min(24, Number(form.querySelector(".f-end").value) || 24));
-    block.dj = form.querySelector(".f-dj").value === "ellen" ? "ellen" : "fred";
+    block.dj = form.querySelector(".f-dj").value === "lotus" ? "lotus" : "fred";
     block.desc = form.querySelector(".f-desc").value.trim();
     saveSchedule(week);
     editingBlock = null;

@@ -51,10 +51,13 @@ export const settings = {
   set stationName(v) { localStorage.setItem(KEYS.stationName, v.trim() || "TREVOR FM"); },
   get elevenKey() { return localStorage.getItem(KEYS.elevenKey) || ""; },
   set elevenKey(v) { localStorage.setItem(KEYS.elevenKey, v.trim()); },
-  // ElevenLabs premade voice "Rachel" as the default Ellen; any voice id works.
+  // ElevenLabs premade voice "Rachel" as Lotus's default; any voice id works.
   get elevenVoiceId() { return localStorage.getItem(KEYS.elevenVoiceId) || "21m00Tcm4TlvDq8ikWAM"; },
   set elevenVoiceId(v) { localStorage.setItem(KEYS.elevenVoiceId, v.trim() || "21m00Tcm4TlvDq8ikWAM"); },
-  // "schedule" (follow each block's DJ) | "fred" | "ellen"
-  get djOverride() { return localStorage.getItem(KEYS.djOverride) || "schedule"; },
+  // "schedule" (follow each block's DJ) | "fred" | "lotus"
+  get djOverride() {
+    const v = localStorage.getItem(KEYS.djOverride) || "schedule";
+    return v === "ellen" ? "lotus" : v; // pre-rename saves
+  },
   set djOverride(v) { localStorage.setItem(KEYS.djOverride, v); },
 };

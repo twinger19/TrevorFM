@@ -1,13 +1,13 @@
 // The week's programming grid. Blocks carry a name, a plain-language brief
 // that gets handed to the DJ as the show's remit, and which DJ hosts the
-// show ("fred" — the Fitter Happier robot — or "ellen" — the natural
-// ElevenLabs voice). Stored in localStorage.
+// show ("fred" — the Fitter Happier robot — or "lotus" — the calm,
+// philosophical ElevenLabs voice). Stored in localStorage.
 import { settings } from "./config.js";
 
 const KEY = "tfm_schedule";
 
-export const DJS = ["fred", "ellen"];
-export const DJ_LABELS = { fred: "Fred", ellen: "Ellen" };
+export const DJS = ["fred", "lotus"];
+export const DJ_LABELS = { fred: "Fred", lotus: "Lotus" };
 
 export const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 export const DAY_LABELS = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" };
@@ -49,7 +49,10 @@ export function loadSchedule() {
     const saved = JSON.parse(localStorage.getItem(KEY));
     if (saved && DAYS.every((d) => Array.isArray(saved[d]))) {
       // Older saved schedules predate the dj field.
-      for (const d of DAYS) for (const b of saved[d]) if (!DJS.includes(b.dj)) b.dj = "fred";
+      for (const d of DAYS) for (const b of saved[d]) {
+        if (b.dj === "ellen") b.dj = "lotus"; // pre-rename saves
+        if (!DJS.includes(b.dj)) b.dj = "fred";
+      }
       return saved;
     }
   } catch {}

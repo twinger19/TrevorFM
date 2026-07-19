@@ -1,7 +1,7 @@
 // DJ voices, with Spotify volume ducked while they talk.
 // Two engines:
 // - Fred: browser speech synthesis (the classic robot).
-// - Ellen: ElevenLabs TTS (natural, modern). Pre-fetched before the duck so
+// - Lotus: ElevenLabs TTS (low, steady, unhurried). Pre-fetched before the duck so
 //   there's no dead air; any failure falls back to Fred so the show goes on.
 import { settings } from "./config.js";
 import { spotify } from "./spotify.js";
@@ -42,9 +42,9 @@ function speakFred(text, onNearEnd) {
   });
 }
 
-// --- Ellen engine (ElevenLabs) ---
+// --- Lotus engine (ElevenLabs) ---
 
-async function fetchEllenAudio(text) {
+async function fetchLotusAudio(text) {
   const key = settings.elevenKey;
   if (!key) throw new Error("No ElevenLabs key in Settings");
   const res = await fetch(
@@ -52,7 +52,12 @@ async function fetchEllenAudio(text) {
     {
       method: "POST",
       headers: { "xi-api-key": key, "Content-Type": "application/json" },
-      body: JSON.stringify({ text, model_id: "eleven_turbo_v2_5" }),
+      body: JSON.stringify({
+        text,
+        model_id: "eleven_turbo_v2_5",
+        // High stability = the low, steady, unhurried delivery Lotus calls for.
+        voice_settings: { stability: 0.7, similarity_boost: 0.8 },
+      }),
     }
   );
   if (!res.ok) throw new Error(`ElevenLabs ${res.status}`);
@@ -75,17 +80,17 @@ function playAudioUrl(url, onNearEnd) {
   });
 }
 
-// Prepare a speaker BEFORE ducking: for Ellen the audio is fetched up front
+// Prepare a speaker BEFORE ducking: for Lotus the audio is fetched up front
 // (network latency happens over full-volume music, not over silence). The
-// returned play() runs the right engine; Ellen's failures fell back to Fred
+// returned play() runs the right engine; Lotus's failures fall back to Fred
 // at prepare time.
 async function prepareSpeaker(dj, text) {
-  if (dj === "ellen") {
+  if (dj === "lotus") {
     try {
-      const url = await fetchEllenAudio(text);
+      const url = await fetchLotusAudio(text);
       return { play: (onNearEnd) => playAudioUrl(url, onNearEnd) };
     } catch (e) {
-      console.warn(`Ellen unavailable (${e.message}), Fred takes the mic.`);
+      console.warn(`Lotus unavailable (${e.message}), Fred takes the mic.`);
     }
   }
   return { play: (onNearEnd) => speakFred(text, onNearEnd) };
