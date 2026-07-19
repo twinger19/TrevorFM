@@ -31,6 +31,9 @@ const KEYS = {
   playVolume: "tfm_play_volume",
   voiceName: "tfm_voice_name",
   stationName: "tfm_station_name",
+  elevenKey: "tfm_eleven_key",
+  elevenVoiceId: "tfm_eleven_voice_id",
+  djOverride: "tfm_dj_override",
 };
 
 export const settings = {
@@ -46,4 +49,12 @@ export const settings = {
   set voiceName(v) { localStorage.setItem(KEYS.voiceName, v); },
   get stationName() { return localStorage.getItem(KEYS.stationName) || "TREVOR FM"; },
   set stationName(v) { localStorage.setItem(KEYS.stationName, v.trim() || "TREVOR FM"); },
+  get elevenKey() { return localStorage.getItem(KEYS.elevenKey) || ""; },
+  set elevenKey(v) { localStorage.setItem(KEYS.elevenKey, v.trim()); },
+  // ElevenLabs premade voice "Rachel" as the default Ellen; any voice id works.
+  get elevenVoiceId() { return localStorage.getItem(KEYS.elevenVoiceId) || "21m00Tcm4TlvDq8ikWAM"; },
+  set elevenVoiceId(v) { localStorage.setItem(KEYS.elevenVoiceId, v.trim() || "21m00Tcm4TlvDq8ikWAM"); },
+  // "schedule" (follow each block's DJ) | "fred" | "ellen"
+  get djOverride() { return localStorage.getItem(KEYS.djOverride) || "schedule"; },
+  set djOverride(v) { localStorage.setItem(KEYS.djOverride, v); },
 };

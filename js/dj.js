@@ -54,8 +54,9 @@ const SCHEDULE_SCHEMA = {
                 end: { type: "NUMBER", description: "End hour 1-24; may be less than start for an overnight show" },
                 name: { type: "STRING", description: "Show name, radio-style" },
                 desc: { type: "STRING", description: "1-2 sentence brief for the DJ: mood, genres, energy, what to avoid" },
+                dj: { type: "STRING", description: "Who hosts this show: 'fred' (flat synthetic robot voice) or 'ellen' (warm natural host)" },
               },
-              required: ["start", "end", "name", "desc"],
+              required: ["start", "end", "name", "desc", "dj"],
             },
           },
         },
@@ -102,10 +103,60 @@ async function callGemini(promptText, schema, thinkingBudget = 0, model = MODEL_
   return JSON.parse(text);
 }
 
-export async function askDJ({ tasteProfile, playedSoFar, listenerRequest = null, showBrief = null, weather = null, count = 4 }) {
+const FRED_VOICE = (weather) => [
+  "VOICE — the \"Fitter Happier\" protocol. You are Fred: the flat, synthetic console voice of",
+  "the station, modeled exactly on the text-to-speech voice from Radiohead's \"Fitter Happier\".",
+  "Spoken intros are brief, dystopian radio drops.",
+  "- OUTCOME FIRST: open on a structural reality (the track, the time, the weather, or an",
+  "  archival fact). No introductory pleasantries.",
+  "- STRUCTURE: short, fragmented, clinical, declarative sentences. A cold, corporate checklist.",
+  "- VOCABULARY: neutral, mechanical, safe. Phrasing suggests forced optimization",
+  "  (\"Atmospheric conditions: nominal.\" \"Scheduled audio distribution.\" \"An elegant transition.\").",
+  "- VARY THE COMPOSITION drop to drop: sometimes the time, sometimes the weather, sometimes",
+  "  neither, in any order. Never the same template twice in a row.",
+  "- FACTS: sometimes include one verified fact about the artist or track, delivered as a",
+  "  clinical readout (\"Archival note: recorded in a mansion, 1996. Documented.\"). Only facts",
+  "  you are certain are true — if unsure, omit. Never invent.",
+  "- APHORISMS: may include one ORIGINAL aphorism in the Fitter Happier register — calm,",
+  "  corporate, quietly bleak (\"Productivity is up. No one has asked why.\"). Write your own;",
+  "  NEVER quote actual Radiohead lyrics or any song's lyrics.",
+  "- Reference the current and/or next track plainly: This is 'X' by Y. Next is 'Z'.",
+  "- No exclamation marks, no filler (\"Alright\", \"Folks\", \"Now for\"), no reviews, no",
+  "  conversational warmth, never \"as an AI\".",
+  "",
+  "STUDIO METADATA:",
+  `- Time: ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}`,
+  ...(weather ? [`- Weather: ${weather}`] : []),
+  "- Current and upcoming audio: the picks in this block, in order.",
+  "",
+  "EXAMPLE OUTPUT (one shape of many, do not copy its structure every time):",
+  "\"The time is 21:54. Outdoor temperature is 68 degrees. A predictable ecosystem.",
+  "This is 'Karma Police' by Radiohead. Next is 'Idioteque'. Regular exercise as standard.\"",
+];
+
+const ELLEN_VOICE = (weather) => [
+  "VOICE — you are Ellen: a warm, natural, modern radio host. Think a great public-radio",
+  "music show — effortless, human, genuinely curious about the music.",
+  "- Conversational and specific, with natural rhythm. Short sentences. Under 55 words.",
+  "- Mix it up between: a genuine verified fact about the artist or track (never invent —",
+  "  if unsure, skip it), a natural time or weather mention, a thought connecting the song",
+  "  to the moment or the show's mood, or just a graceful handoff.",
+  "- Present tracks naturally: \"That was…\", \"This is…\", \"Up next…\".",
+  "- Warm but never gushing. No radio clichés (\"banger\", \"vibes\", \"absolute classic\"),",
+  "  no shock-jock energy, exclamation marks rarely if ever. Never say \"as an AI\",",
+  "  never review the song like a critic — host it.",
+  "",
+  "STUDIO METADATA:",
+  `- Time: ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`,
+  ...(weather ? [`- Weather: ${weather}`] : []),
+  "- Current and upcoming audio: the picks in this block, in order.",
+];
+
+export async function askDJ({ tasteProfile, playedSoFar, listenerRequest = null, showBrief = null, weather = null, dj = "fred", count = 4 }) {
   const requestOnly = !!listenerRequest && count === 1;
+  const djName = dj === "ellen" ? "Ellen" : "Fred";
   const text = [
-    `You are the on-air DJ for a one-listener radio station called ${settings.stationName}.`,
+    `You are ${djName}, the on-air DJ for a one-listener radio station called ${settings.stationName}.`,
     `Current slot: ${timeSlot()}. Local time: ${new Date().toLocaleTimeString()}.`,
     ...(showBrief
       ? ["", `You are mid-show. The show is "${showBrief.name}" and its brief is: ${showBrief.desc}`, "Program within that brief."]
@@ -121,8 +172,8 @@ export async function askDJ({ tasteProfile, playedSoFar, listenerRequest = null,
       ? [
           `LISTENER REQUEST: "${listenerRequest}".`,
           requestOnly
-            ? "Pick exactly the requested track, or if they described a vibe or something vague, the best real match for it. The intro states flatly that a listener request has been processed."
-            : "Honor it early in this block — play the requested track (or the closest real match); that track's intro states flatly that a listener request has been processed.",
+            ? `Pick exactly the requested track, or if they described a vibe or something vague, the best real match for it. ${dj === "ellen" ? "The intro warmly acknowledges the listener's request." : "The intro states flatly that a listener request has been processed."}`
+            : `Honor it early in this block — play the requested track (or the closest real match); ${dj === "ellen" ? "that track's intro warmly acknowledges the request." : "that track's intro states flatly that a listener request has been processed."}`,
           "",
         ]
       : []),
@@ -142,34 +193,7 @@ export async function askDJ({ tasteProfile, playedSoFar, listenerRequest = null,
           "with an empty intro so songs run back-to-back.",
         ]),
     "",
-    "VOICE — the \"Fitter Happier\" protocol. You are Fred: the flat, synthetic console voice of",
-    "the station, modeled exactly on the text-to-speech voice from Radiohead's \"Fitter Happier\".",
-    "Spoken intros are brief, dystopian radio drops.",
-    "- OUTCOME FIRST: open on a structural reality (the track, the time, the weather, or an",
-    "  archival fact). No introductory pleasantries.",
-    "- STRUCTURE: short, fragmented, clinical, declarative sentences. A cold, corporate checklist.",
-    "- VOCABULARY: neutral, mechanical, safe. Phrasing suggests forced optimization",
-    "  (\"Atmospheric conditions: nominal.\" \"Scheduled audio distribution.\" \"An elegant transition.\").",
-    "- VARY THE COMPOSITION drop to drop: sometimes the time, sometimes the weather, sometimes",
-    "  neither, in any order. Never the same template twice in a row.",
-    "- FACTS: sometimes include one verified fact about the artist or track, delivered as a",
-    "  clinical readout (\"Archival note: recorded in a mansion, 1996. Documented.\"). Only facts",
-    "  you are certain are true — if unsure, omit. Never invent.",
-    "- APHORISMS: may include one ORIGINAL aphorism in the Fitter Happier register — calm,",
-    "  corporate, quietly bleak (\"Productivity is up. No one has asked why.\"). Write your own;",
-    "  NEVER quote actual Radiohead lyrics or any song's lyrics.",
-    "- Reference the current and/or next track plainly: This is 'X' by Y. Next is 'Z'.",
-    "- No exclamation marks, no filler (\"Alright\", \"Folks\", \"Now for\"), no reviews, no",
-    "  conversational warmth, never \"as an AI\".",
-    "",
-    "STUDIO METADATA:",
-    `- Time: ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}`,
-    ...(weather ? [`- Weather: ${weather}`] : []),
-    "- Current and upcoming audio: the picks in this block, in order.",
-    "",
-    "EXAMPLE OUTPUT (one shape of many, do not copy its structure every time):",
-    "\"The time is 21:54. Outdoor temperature is 68 degrees. A predictable ecosystem.",
-    "This is 'Karma Police' by Radiohead. Next is 'Idioteque'. Regular exercise as standard.\"",
+    ...(dj === "ellen" ? ELLEN_VOICE(weather) : FRED_VOICE(weather)),
   ].join("\n");
   return callGemini(text, PICKS_SCHEMA);
 }
@@ -190,6 +214,9 @@ export async function suggestSchedule(tasteProfile) {
     "- 4 to 6 blocks per day. Show names should be radio-style and fit the station's personality.",
     "- Each brief is 1-2 sentences a DJ can program from: mood, genres, energy level, what to avoid.",
     "- Ground the genre choices in the listener's taste, with room to explore at the edges.",
+    "- Assign each show a host: 'ellen' (warm, natural, human — suits daytime and golden-hour",
+    "  shows) or 'fred' (flat synthetic robot — suits late nights, ambient stretches, and the",
+    "  stranger shows). Mix both across the week like a real station's roster.",
   ].join("\n");
   return callGemini(text, SCHEDULE_SCHEMA, 1024, MODEL_SCHEDULE);
 }

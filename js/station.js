@@ -4,7 +4,7 @@ import { spotify } from "./spotify.js";
 import { askDJ } from "./dj.js";
 import { announceOverMusic, talkThenStart, estimateSpeechSeconds } from "./voice.js";
 import { settings } from "./config.js";
-import { loadSchedule, currentBlock } from "./schedule.js";
+import { loadSchedule, currentBlock, currentDJ } from "./schedule.js";
 
 const POLL_MS = 4000;
 const TOPUP_WHEN_REMAINING = 2;
@@ -41,6 +41,7 @@ export class Station {
       playedSoFar: this.playedTitles,
       listenerRequest: text,
       weather: this.weatherText,
+      dj: currentDJ(),
       count: 1,
     });
     const tracks = await this.resolvePicks(picks);
@@ -64,7 +65,7 @@ export class Station {
     if (intro) {
       this.introByUri.delete(track.uri);
       this.events.onDJLine?.(intro, "voice");
-      announceOverMusic(deviceId, intro);
+      announceOverMusic(deviceId, intro, currentDJ());
     }
     return { track, when: "now" };
   }
@@ -114,6 +115,7 @@ export class Station {
       playedSoFar: this.playedTitles.concat(this.upNext.map(trackLabel)),
       showBrief: currentBlock(loadSchedule()),
       weather: this.weatherText,
+      dj: currentDJ(),
       count,
     });
     this.log(`DJ: ${segueNote}`, "dj");
@@ -163,7 +165,7 @@ export class Station {
           this.introByUri.delete(item.uri);
           this.events.onDJLine?.(intro, "voice");
           this.log(`On air: "${intro}"`, "dj");
-          await announceOverMusic(this.deviceId, intro);
+          await announceOverMusic(this.deviceId, intro, currentDJ());
         }
       }
 
@@ -204,7 +206,7 @@ export class Station {
       talkThenStart(this.deviceId, intro, () => {
         spotify.play(this.deviceId, [nextUp.uri]).catch(() => {});
         if (this.pendingPlayNext?.uri === nextUp.uri) this.pendingPlayNext = null;
-      }).finally(() => { this.announcing = false; });
+      }, currentDJ()).finally(() => { this.announcing = false; });
     } else if (this.pendingPlayNext && remainingMs < POLL_MS + 1000) {
       const target = this.pendingPlayNext;
       this.pendingPlayNext = null;

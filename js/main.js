@@ -9,7 +9,7 @@ import { availableVoices } from "./voice.js";
 import { initBrowserPlayer, activateBrowserPlayback } from "./player.js";
 import { createWaveform } from "./waveform.js";
 import { createBuddy } from "./buddy.js";
-import { loadSchedule, saveSchedule, resetSchedule, currentBlock, dayKey, fmtHour, DAYS, DAY_LABELS } from "./schedule.js";
+import { loadSchedule, saveSchedule, resetSchedule, currentBlock, dayKey, fmtHour, DAYS, DAY_LABELS, DJ_LABELS } from "./schedule.js";
 import { suggestSchedule } from "./dj.js";
 import { fetchSyncedLyrics } from "./lyrics.js";
 import { getWeather } from "./weather.js";
@@ -576,7 +576,7 @@ function renderSchedule() {
       div.classList.add("now");
     }
     div.innerHTML = `
-      <div class="sched-time">${fmtHour(block.start)}–${fmtHour(block.end)}</div>
+      <div class="sched-time">${fmtHour(block.start)}–${fmtHour(block.end)} · with ${DJ_LABELS[block.dj] || "Fred"}</div>
       <div class="sched-name"></div>
       <div class="sched-desc"></div>`;
     div.querySelector(".sched-name").textContent = block.name;
@@ -598,8 +598,9 @@ function blockForm(week, idx) {
   form.innerHTML = `
     <input class="f-name" placeholder="Show name" />
     <div class="times">from <input class="f-start" type="number" min="0" max="23" /> :00
-      to <input class="f-end" type="number" min="1" max="24" /> :00</div>
-    <textarea class="f-desc" placeholder="Brief for Fred: mood, genres, energy, what to avoid"></textarea>
+      to <input class="f-end" type="number" min="1" max="24" /> :00
+      · DJ <select class="f-dj"><option value="fred">Fred</option><option value="ellen">Ellen</option></select></div>
+    <textarea class="f-desc" placeholder="Brief for the DJ: mood, genres, energy, what to avoid"></textarea>
     <div class="row">
       <button class="text-btn f-delete">delete</button>
       <button class="text-btn f-cancel">cancel</button>
@@ -608,11 +609,13 @@ function blockForm(week, idx) {
   form.querySelector(".f-name").value = block.name;
   form.querySelector(".f-start").value = block.start;
   form.querySelector(".f-end").value = block.end;
+  form.querySelector(".f-dj").value = block.dj || "fred";
   form.querySelector(".f-desc").value = block.desc;
   form.querySelector(".f-save").onclick = () => {
     block.name = form.querySelector(".f-name").value.trim() || "Untitled Show";
     block.start = Math.max(0, Math.min(23, Number(form.querySelector(".f-start").value) || 0));
     block.end = Math.max(1, Math.min(24, Number(form.querySelector(".f-end").value) || 24));
+    block.dj = form.querySelector(".f-dj").value === "ellen" ? "ellen" : "fred";
     block.desc = form.querySelector(".f-desc").value.trim();
     saveSchedule(week);
     editingBlock = null;
@@ -656,6 +659,9 @@ function fillSettingsForm() {
   $("setClientId").value = settings.clientId;
   $("setGeminiKey").value = settings.geminiKey;
   $("setDuck").value = settings.duckVolume;
+  $("setDJOverride").value = settings.djOverride;
+  $("setElevenKey").value = settings.elevenKey;
+  $("setElevenVoiceId").value = settings.elevenVoiceId === "21m00Tcm4TlvDq8ikWAM" ? "" : settings.elevenVoiceId;
   $("redirectUriShown").value = computeRedirectUri();
   const sel = $("setVoice");
   sel.innerHTML = "";
@@ -676,6 +682,9 @@ $("saveSettingsBtn").onclick = () => {
   settings.geminiKey = $("setGeminiKey").value;
   settings.duckVolume = Number($("setDuck").value);
   settings.voiceName = $("setVoice").value;
+  settings.djOverride = $("setDJOverride").value;
+  settings.elevenKey = $("setElevenKey").value;
+  settings.elevenVoiceId = $("setElevenVoiceId").value;
   $("settingsDialog").close();
   refreshSetupState();
   refreshDevices();

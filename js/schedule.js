@@ -1,8 +1,13 @@
-// The week's programming grid. Blocks carry a name + a plain-language brief
-// that gets handed to the DJ as the show's remit. Stored in localStorage;
-// the defaults below are the launch lineup (weekdays share a shape, weekends
-// loosen up, like a real station).
+// The week's programming grid. Blocks carry a name, a plain-language brief
+// that gets handed to the DJ as the show's remit, and which DJ hosts the
+// show ("fred" — the Fitter Happier robot — or "ellen" — the natural
+// ElevenLabs voice). Stored in localStorage.
+import { settings } from "./config.js";
+
 const KEY = "tfm_schedule";
+
+export const DJS = ["fred", "ellen"];
+export const DJ_LABELS = { fred: "Fred", ellen: "Ellen" };
 
 export const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 export const DAY_LABELS = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" };
@@ -42,9 +47,21 @@ function defaults() {
 export function loadSchedule() {
   try {
     const saved = JSON.parse(localStorage.getItem(KEY));
-    if (saved && DAYS.every((d) => Array.isArray(saved[d]))) return saved;
+    if (saved && DAYS.every((d) => Array.isArray(saved[d]))) {
+      // Older saved schedules predate the dj field.
+      for (const d of DAYS) for (const b of saved[d]) if (!DJS.includes(b.dj)) b.dj = "fred";
+      return saved;
+    }
   } catch {}
   return defaults();
+}
+
+// Who is on the mic right now: the Settings override wins; otherwise the
+// current show's DJ; Fred if nothing matches.
+export function currentDJ(date = new Date()) {
+  if (DJS.includes(settings.djOverride)) return settings.djOverride;
+  const block = currentBlock(loadSchedule(), date);
+  return DJS.includes(block?.dj) ? block.dj : "fred";
 }
 
 export function saveSchedule(week) {

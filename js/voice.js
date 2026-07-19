@@ -1,4 +1,8 @@
-// DJ voice: browser speech synthesis, with Spotify volume ducked while talking.
+// DJ voices, with Spotify volume ducked while they talk.
+// Two engines:
+// - Fred: browser speech synthesis (the classic robot).
+// - Ellen: ElevenLabs TTS (natural, modern). Pre-fetched before the duck so
+//   there's no dead air; any failure falls back to Fred so the show goes on.
 import { settings } from "./config.js";
 import { spotify } from "./spotify.js";
 
@@ -9,7 +13,6 @@ export function availableVoices() {
 function pickVoice() {
   const voices = availableVoices();
   const chosen = voices.find((v) => v.name === settings.voiceName);
-  // Prefer higher-quality local voices when none chosen.
   return chosen || voices.find((v) => /premium|enhanced|siri/i.test(v.name)) || voices[0] || null;
 }
 
@@ -17,10 +20,9 @@ export function estimateSpeechSeconds(text) {
   return text.split(/\s+/).length * 0.42 + 0.8;
 }
 
-// onNearEnd (optional) fires when ~80% of the text has been spoken — the
-// radio "hit the post" moment. Word-boundary events drive it, with a timer
-// fallback for voices that don't emit boundaries.
-function speak(text, onNearEnd) {
+// --- Fred engine (speechSynthesis) ---
+
+function speakFred(text, onNearEnd) {
   return new Promise((resolve) => {
     const u = new SpeechSynthesisUtterance(text);
     const voice = pickVoice();
@@ -36,38 +38,86 @@ function speak(text, onNearEnd) {
     u.onend = done;
     u.onerror = done;
     speechSynthesis.speak(u);
-    // Safety: never hang the station on a stuck utterance.
-    setTimeout(done, 30000);
+    setTimeout(done, 30000); // never hang the station on a stuck utterance
   });
 }
 
-// Duck the music, say the line, bring it back to EXACTLY where it was.
-// The pre-speech volume is read live from the player (not from settings,
-// which can be stale) so the music always resumes at the listener's level.
-export async function announceOverMusic(deviceId, text) {
+// --- Ellen engine (ElevenLabs) ---
+
+async function fetchEllenAudio(text) {
+  const key = settings.elevenKey;
+  if (!key) throw new Error("No ElevenLabs key in Settings");
+  const res = await fetch(
+    `https://api.elevenlabs.io/v1/text-to-speech/${settings.elevenVoiceId}?output_format=mp3_44100_64`,
+    {
+      method: "POST",
+      headers: { "xi-api-key": key, "Content-Type": "application/json" },
+      body: JSON.stringify({ text, model_id: "eleven_turbo_v2_5" }),
+    }
+  );
+  if (!res.ok) throw new Error(`ElevenLabs ${res.status}`);
+  return URL.createObjectURL(await res.blob());
+}
+
+function playAudioUrl(url, onNearEnd) {
+  return new Promise((resolve) => {
+    const audio = new Audio(url);
+    let cued = !onNearEnd;
+    const cue = () => { if (!cued) { cued = true; onNearEnd(); } };
+    const done = () => { cue(); URL.revokeObjectURL(url); resolve(); };
+    audio.ontimeupdate = () => {
+      if (audio.duration && audio.currentTime / audio.duration >= 0.8) cue();
+    };
+    audio.onended = done;
+    audio.onerror = done;
+    audio.play().catch(done);
+    setTimeout(done, 60000);
+  });
+}
+
+// Prepare a speaker BEFORE ducking: for Ellen the audio is fetched up front
+// (network latency happens over full-volume music, not over silence). The
+// returned play() runs the right engine; Ellen's failures fell back to Fred
+// at prepare time.
+async function prepareSpeaker(dj, text) {
+  if (dj === "ellen") {
+    try {
+      const url = await fetchEllenAudio(text);
+      return { play: (onNearEnd) => playAudioUrl(url, onNearEnd) };
+    } catch (e) {
+      console.warn(`Ellen unavailable (${e.message}), Fred takes the mic.`);
+    }
+  }
+  return { play: (onNearEnd) => speakFred(text, onNearEnd) };
+}
+
+async function readCurrentVolume() {
   let before = settings.playVolume;
   try {
     const state = await spotify.playerState();
     if (typeof state?.device?.volume_percent === "number") before = state.device.volume_percent;
   } catch {}
   if (before < 5) before = settings.playVolume || 60; // never "restore" to silence
+  return before;
+}
+
+// Duck the music, say the line, bring it back to EXACTLY where it was.
+export async function announceOverMusic(deviceId, text, dj = "fred") {
+  const speaker = await prepareSpeaker(dj, text);
+  const before = await readCurrentVolume();
   try { await spotify.setVolume(deviceId, Math.min(settings.duckVolume, before)); } catch {}
   await new Promise((r) => setTimeout(r, 250));
-  await speak(text);
+  await speaker.play();
   await new Promise((r) => setTimeout(r, 150));
   try { await spotify.setVolume(deviceId, before); } catch {}
 }
 
-// Real-radio talk-up: Fred speaks over the outro of the current song, the
-// next one starts under his last words (via startSong at ~80% spoken), and
-// the volume fades back up as he signs off.
-export async function talkThenStart(deviceId, text, startSong) {
-  let before = settings.playVolume;
-  try {
-    const state = await spotify.playerState();
-    if (typeof state?.device?.volume_percent === "number") before = state.device.volume_percent;
-  } catch {}
-  if (before < 5) before = settings.playVolume || 60;
+// Real-radio talk-up: the DJ speaks over the outro of the current song, the
+// next one starts under the last words (via startSong at ~80% spoken), and
+// the volume fades back up on the sign-off.
+export async function talkThenStart(deviceId, text, startSong, dj = "fred") {
+  const speaker = await prepareSpeaker(dj, text);
+  const before = await readCurrentVolume();
   let started = false;
   const kick = () => {
     if (started) return;
@@ -76,7 +126,7 @@ export async function talkThenStart(deviceId, text, startSong) {
   };
   try { await spotify.setVolume(deviceId, Math.min(settings.duckVolume, before)); } catch {}
   await new Promise((r) => setTimeout(r, 200));
-  await speak(text, kick);
+  await speaker.play(kick);
   kick(); // guarantee the song starts even if the cue never fired
   await new Promise((r) => setTimeout(r, 150));
   try { await spotify.setVolume(deviceId, before); } catch {}

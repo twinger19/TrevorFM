@@ -152,7 +152,16 @@
     <label>Spotify Client ID <input id="setClientId" placeholder="from developer.spotify.com" /></label>
     <label>Redirect URI to register in Spotify <input id="redirectUriShown" readonly onclick="this.select()" /></label>
     <label>Gemini API key <input id="setGeminiKey" type="password" placeholder="from aistudio.google.com" /></label>
-    <label>DJ voice <select id="setVoice"></select></label>
+    <label>On-air DJ
+      <select id="setDJOverride">
+        <option value="schedule">Follow the schedule</option>
+        <option value="fred">Always Fred</option>
+        <option value="ellen">Always Ellen</option>
+      </select>
+    </label>
+    <label>ElevenLabs API key (Ellen's voice) <input id="setElevenKey" type="password" placeholder="from elevenlabs.io" /></label>
+    <label>ElevenLabs voice ID <input id="setElevenVoiceId" placeholder="blank = Rachel (default)" /></label>
+    <label>Fred's voice <select id="setVoice"></select></label>
     <label>Duck volume while DJ talks <input type="range" id="setDuck" min="0" max="60" step="5" /></label>
     <div class="dialog-actions">
       <button id="testVoiceBtn" class="text-btn">Test voice</button>
