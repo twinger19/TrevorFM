@@ -41,10 +41,15 @@ export const spotify = {
     return json.tracks.items[0] || null;
   },
   artist: (id) => api("GET", `/artists/${id}`),
-  isTrackSaved: async (id) => (await api("GET", `/me/tracks/contains?ids=${id}`))[0],
-  saveTrack: (id) => api("PUT", `/me/tracks?ids=${id}`),
-  unsaveTrack: (id) => api("DELETE", `/me/tracks?ids=${id}`),
-  containsTracks: (ids) => api("GET", `/me/tracks/contains?ids=${ids.join(",")}`),
+  // Spotify deprecated /me/tracks (save/remove/contains) in the Feb 2026
+  // migration — it 403s even with a valid token. Unified replacement is
+  // /me/library with `uris` of spotify:track:ID.
+  isTrackSaved: async (id) =>
+    (await api("GET", `/me/library/contains?uris=${encodeURIComponent(`spotify:track:${id}`)}`))[0],
+  saveTrack: (id) => api("PUT", `/me/library?uris=${encodeURIComponent(`spotify:track:${id}`)}`),
+  unsaveTrack: (id) => api("DELETE", `/me/library?uris=${encodeURIComponent(`spotify:track:${id}`)}`),
+  containsTracks: (ids) =>
+    api("GET", `/me/library/contains?uris=${encodeURIComponent(ids.map((i) => `spotify:track:${i}`).join(","))}`),
   playerState: () => api("GET", "/me/player"),
   transferTo: (deviceId) => api("PUT", "/me/player", { device_ids: [deviceId], play: false }),
   play: (deviceId, uris) => api("PUT", `/me/player/play?device_id=${deviceId}`, { uris }),
