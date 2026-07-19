@@ -46,6 +46,11 @@ export async function beginLogin() {
     scope: SCOPES,
     code_challenge_method: "S256",
     code_challenge: challenge,
+    // Force the consent screen. Without this, re-authorizing an already-
+    // approved app silently reissues a token with the ORIGINAL scopes and
+    // skips consent — so newly-added scopes (like library access for the
+    // like heart) never get granted on reconnect.
+    show_dialog: "true",
   });
   location.href = `https://accounts.spotify.com/authorize?${params}`;
 }

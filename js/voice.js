@@ -3,8 +3,16 @@
 // - Fred: browser speech synthesis (the classic robot).
 // - Lotus: ElevenLabs TTS (low, steady, unhurried). Pre-fetched before the duck so
 //   there's no dead air; any failure falls back to Fred so the show goes on.
+//   NOTE: ElevenLabs does not allow direct browser calls (no CORS), so Lotus
+//   cannot speak on the WEB app — she works in the native iOS app. On web she
+//   always falls back to Fred; the reason is logged once so it isn't silent.
 import { settings } from "./config.js";
 import { spotify } from "./spotify.js";
+
+// The station wires this to the booth log so voice fallbacks are visible.
+let voiceLogger = (msg) => console.warn(msg);
+export function setVoiceLogger(fn) { voiceLogger = fn; }
+let warnedLotusWeb = false;
 
 export function availableVoices() {
   return speechSynthesis.getVoices().filter((v) => v.lang.startsWith("en"));
@@ -86,11 +94,23 @@ function playAudioUrl(url, onNearEnd) {
 // at prepare time.
 async function prepareSpeaker(dj, text) {
   if (dj === "lotus") {
-    try {
-      const url = await fetchLotusAudio(text);
-      return { play: (onNearEnd) => playAudioUrl(url, onNearEnd) };
-    } catch (e) {
-      console.warn(`Lotus unavailable (${e.message}), Fred takes the mic.`);
+    if (!settings.elevenKey) {
+      voiceLogger("Lotus needs an ElevenLabs key in Settings — Fred is covering.");
+    } else {
+      try {
+        const url = await fetchLotusAudio(text);
+        return { play: (onNearEnd) => playAudioUrl(url, onNearEnd) };
+      } catch (e) {
+        // A thrown TypeError with no HTTP status is the browser's CORS block.
+        if (!warnedLotusWeb) {
+          warnedLotusWeb = true;
+          voiceLogger(
+            /ElevenLabs \d/.test(e.message)
+              ? `Lotus voice error: ${e.message}. Fred is covering.`
+              : "Lotus's voice can't run in a web browser (ElevenLabs blocks browser calls). She works in the iOS app; on web, Fred covers her shows."
+          );
+        }
+      }
     }
   }
   return { play: (onNearEnd) => speakFred(text, onNearEnd) };

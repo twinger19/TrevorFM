@@ -4,7 +4,7 @@ import { spotify } from "./spotify.js";
 import { askDJ } from "./dj.js";
 import { announceOverMusic, talkThenStart, estimateSpeechSeconds } from "./voice.js";
 import { settings } from "./config.js";
-import { loadSchedule, currentBlock, currentDJ } from "./schedule.js";
+import { effectiveBlock, currentDJ } from "./schedule.js";
 
 const POLL_MS = 4000;
 const TOPUP_WHEN_REMAINING = 2;
@@ -113,7 +113,7 @@ export class Station {
     const { picks, segueNote } = await askDJ({
       tasteProfile: this.tasteProfile,
       playedSoFar: this.playedTitles.concat(this.upNext.map(trackLabel)),
-      showBrief: currentBlock(loadSchedule()),
+      showBrief: effectiveBlock(),
       weather: this.weatherText,
       dj: currentDJ(),
       count,
@@ -141,6 +141,24 @@ export class Station {
     this.upNext = tracks;
     this.events.onStatus("onair");
     this.timer = setInterval(() => this.tick().catch((e) => this.log(e.message, "warn")), POLL_MS);
+  }
+
+  // Switch to a just-selected instant block: drop the queued schedule tracks
+  // and program a fresh block from the mood, playing its first track now so
+  // the change is immediate. (The instant block is already set in schedule.js;
+  // programBlock reads it via effectiveBlock.)
+  async applyInstant(label) {
+    if (!this.running) return;
+    this.log(`Switching to ${label}…`, "dj");
+    this.events.onDJLine?.(`switching to ${label.toLowerCase()}…`, "dj");
+    this.introByUri.clear();
+    this.pendingPlayNext = null;
+    const tracks = await this.programBlock(BLOCK_SIZE);
+    if (!tracks.length) { this.log("Couldn't program that mood — try again.", "warn"); return; }
+    await spotify.play(this.deviceId, [tracks[0].uri]);
+    for (const t of tracks.slice(1)) await spotify.queue(this.deviceId, t.uri);
+    this.upNext = tracks;
+    this.events.onUpNext(this.upNext);
   }
 
   async tick() {

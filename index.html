@@ -61,6 +61,10 @@
       </div>
       <div class="lyrics" id="lyricsBox" hidden aria-hidden="true"><div class="lyrics-scroll" id="lyricsScroll"></div></div>
       <nav class="rail">
+        <button class="rail-btn" data-drawer="moods">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 3v9l6 3"/></svg>
+          <span>Moods</span>
+        </button>
         <button class="rail-btn" data-drawer="schedule">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
           <span>Schedule</span>
@@ -134,6 +138,7 @@
         <p class="request-status mono" id="requestStatus" hidden></p>
       </form>
       <div id="scheduleView" hidden></div>
+      <div id="moodsView" hidden></div>
     </div>
   </aside>
 

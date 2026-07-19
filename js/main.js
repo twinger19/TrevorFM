@@ -5,11 +5,12 @@ import { settings, computeRedirectUri } from "./config.js";
 import { handleCallback, beginLogin, isLoggedIn } from "./auth.js";
 import { spotify } from "./spotify.js";
 import { Station } from "./station.js";
-import { availableVoices } from "./voice.js";
+import { availableVoices, setVoiceLogger } from "./voice.js";
 import { initBrowserPlayer, activateBrowserPlayback } from "./player.js";
 import { createWaveform } from "./waveform.js";
 import { createBuddy } from "./buddy.js";
-import { loadSchedule, saveSchedule, resetSchedule, currentBlock, dayKey, fmtHour, DAYS, DAY_LABELS, DJ_LABELS } from "./schedule.js";
+import { loadSchedule, saveSchedule, resetSchedule, currentBlock, dayKey, fmtHour, DAYS, DAY_LABELS, DJ_LABELS,
+  INSTANT_BLOCKS, setInstantBlock, activeInstantBlock } from "./schedule.js";
 import { suggestSchedule } from "./dj.js";
 import { fetchSyncedLyrics } from "./lyrics.js";
 import { getWeather } from "./weather.js";
@@ -309,20 +310,26 @@ setInterval(() => {
   }
 }, 1000);
 
-// current show + local weather in the header, like a real station ident
+// current show (or active mood) + local weather in the header ident
 async function refreshShowNow() {
+  const mood = activeInstantBlock();
   const block = currentBlock(loadSchedule());
   const weather = await getWeather();
   station.weatherText = weather?.text || null;
   $("showNow").innerHTML = "";
-  if (block) {
+  if (mood) {
+    $("showNow").append("● ");
+    const b = document.createElement("b");
+    b.textContent = `${mood.name} mode`;
+    $("showNow").appendChild(b);
+  } else if (block) {
     $("showNow").append("▸ ");
     const b = document.createElement("b");
     b.textContent = block.name;
     $("showNow").appendChild(b);
     $("showNow").append(` · ${fmtHour(block.start)}–${fmtHour(block.end)}`);
   }
-  if (weather) $("showNow").append(`${block ? " · " : ""}${weather.tempF}° ${weather.description.toUpperCase()}`);
+  if (weather) $("showNow").append(`${mood || block ? " · " : ""}${weather.tempF}° ${weather.description.toUpperCase()}`);
 }
 refreshShowNow();
 setInterval(refreshShowNow, 60000);
@@ -382,6 +389,7 @@ async function refreshDevices() {
 // ---------- drawers ----------
 
 const DRAWERS = {
+  moods: { title: "moods_", el: "moodsView" },
   schedule: { title: "schedule_", el: "scheduleView" },
   timeline: { title: "timeline_", el: "timelineList" },
   booth: { title: "booth feed_", el: "boothView" },
@@ -398,6 +406,61 @@ function openDrawer(name) {
   if (name === "timeline") renderTimeline();
   if (name === "schedule") renderSchedule();
   if (name === "booth") renderBooth();
+  if (name === "moods") renderMoods();
+}
+
+function renderMoods() {
+  const view = $("moodsView");
+  view.innerHTML = "";
+  const active = activeInstantBlock();
+
+  const hint = document.createElement("p");
+  hint.className = "sched-note";
+  hint.style.marginTop = "0";
+  hint.textContent = live
+    ? "Tap a mood to take over the airwaves right now. It overrides the schedule until the next scheduled show begins."
+    : "Start the station first, then a mood takes over instantly. It overrides the schedule until the next show begins.";
+  view.appendChild(hint);
+
+  if (active) {
+    const banner = document.createElement("div");
+    banner.className = "mood-active";
+    banner.innerHTML = `<span>Now on: <b></b></span>`;
+    banner.querySelector("b").textContent = active.name;
+    const back = document.createElement("button");
+    back.className = "text-btn";
+    back.textContent = "back to schedule";
+    back.onclick = async () => {
+      setInstantBlock(null);
+      if (live) await station.applyInstant("the schedule");
+      renderMoods();
+    };
+    banner.appendChild(back);
+    view.appendChild(banner);
+  }
+
+  const grid = document.createElement("div");
+  grid.className = "mood-grid";
+  for (const block of INSTANT_BLOCKS) {
+    const btn = document.createElement("button");
+    btn.className = "mood-tile" + (active?.id === block.id ? " on" : "");
+    btn.innerHTML = `<span class="mood-icon">${block.icon}</span><span class="mood-name"></span><span class="mood-desc"></span>`;
+    btn.querySelector(".mood-name").textContent = block.name;
+    btn.querySelector(".mood-desc").textContent = block.desc;
+    btn.onclick = async () => {
+      setInstantBlock(block);
+      renderMoods();
+      refreshShowNow();
+      if (live) {
+        closeDrawer();
+        await station.applyInstant(block.name);
+      } else {
+        station.events.onLog(`${block.name} armed — it starts when you power on.`, "dj");
+      }
+    };
+    grid.appendChild(btn);
+  }
+  view.appendChild(grid);
 }
 
 function closeDrawer() {
@@ -796,6 +859,12 @@ $("tuneOverlay").onclick = () => {
 
 waveform = createWaveform($("waveform"));
 buddy = createBuddy($("buddyMount"));
+
+// Voice-engine notices (e.g. Lotus unavailable on web) go to the booth + DJ line.
+setVoiceLogger((msg) => {
+  station.events.onLog(msg, "warn");
+  showDJLine(msg.toLowerCase(), "dj");
+});
 
 setInterval(() => {
   if (!lastProgress?.duration) return waveform.setProgress(0);
