@@ -144,6 +144,7 @@ function displayTrack(item) {
     name: item.name,
     artists: item.artists.map((a) => a.name).join(", "),
     time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    id: item.id,
   });
   sessionPlayed = sessionPlayed.slice(0, 40);
   const artists = item.artists.map((a) => a.name).join(", ");
@@ -414,9 +415,10 @@ document.addEventListener("keydown", (e) => {
 
 // ---------- timeline ----------
 
-function tlItem(name, artists, extra, cls) {
+function tlItem(name, artists, extra, cls, trackId) {
   const li = document.createElement("li");
   if (cls) li.className = cls;
+  if (trackId) li.dataset.tid = trackId;
   if (extra) {
     const t = document.createElement("time");
     t.textContent = extra;
@@ -427,6 +429,24 @@ function tlItem(name, artists, extra, cls) {
   span.textContent = artists;
   li.appendChild(span);
   return li;
+}
+
+// After the timeline renders, mark every row whose track is in Liked Songs.
+async function annotateLikedHearts(list) {
+  const rows = [...list.querySelectorAll("li[data-tid]")];
+  const ids = [...new Set(rows.map((r) => r.dataset.tid))].slice(0, 50);
+  if (!ids.length) return;
+  try {
+    const flags = await spotify.containsTracks(ids);
+    const liked = new Set(ids.filter((_, i) => flags[i]));
+    for (const row of rows) {
+      if (!liked.has(row.dataset.tid)) continue;
+      const heart = document.createElement("span");
+      heart.className = "tl-heart";
+      heart.textContent = "♥";
+      row.insertBefore(heart, row.querySelector("span"));
+    }
+  } catch {}
 }
 
 async function renderTimeline() {
@@ -441,15 +461,17 @@ async function renderTimeline() {
 
   if (live && station.upNext.length) {
     section("Up next");
-    for (const t of station.upNext) list.appendChild(tlItem(t.name, t.artists.map((a) => a.name).join(", ")));
+    for (const t of station.upNext) {
+      list.appendChild(tlItem(t.name, t.artists.map((a) => a.name).join(", "), null, null, t.uri?.split(":").pop()));
+    }
   }
   if (sessionPlayed.length) {
     section("On air");
     const now = sessionPlayed[0];
-    list.appendChild(tlItem(now.name, now.artists, now.time, "tl-now"));
+    list.appendChild(tlItem(now.name, now.artists, now.time, "tl-now", now.id));
     if (sessionPlayed.length > 1) {
       section("Earlier this session");
-      for (const p of sessionPlayed.slice(1)) list.appendChild(tlItem(p.name, p.artists, p.time));
+      for (const p of sessionPlayed.slice(1)) list.appendChild(tlItem(p.name, p.artists, p.time, null, p.id));
     }
   }
   try {
@@ -461,13 +483,14 @@ async function renderTimeline() {
         const artists = r.track.artists.map((a) => a.name).join(", ");
         if (seen.has(`${artists} – ${r.track.name}`)) continue;
         const when = new Date(r.played_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-        list.appendChild(tlItem(r.track.name, artists, when));
+        list.appendChild(tlItem(r.track.name, artists, when, null, r.track.id));
       }
     }
   } catch {}
   if (!list.children.length) {
     list.appendChild(tlItem("Nothing yet", "The timeline fills as music plays."));
   }
+  annotateLikedHearts(list);
 }
 
 // ---------- request ----------
@@ -790,12 +813,11 @@ $("likeBtn").onclick = async () => {
     }
   } catch (e) {
     $("likeBtn").classList.toggle("liked", wasLiked); // roll back
-    station.events.onLog(
-      e.message.includes("403")
-        ? "Likes need a fresh login — hit Reconnect Spotify in Settings."
-        : e.message,
-      "warn"
-    );
+    const hint = e.message.includes("403")
+      ? "likes need fresh permissions — settings gear, then reconnect spotify"
+      : e.message;
+    showDJLine(hint, "dj"); // on the main screen, not buried in the booth
+    station.events.onLog(hint, "warn");
   }
 };
 
