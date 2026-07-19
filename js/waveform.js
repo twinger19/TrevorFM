@@ -14,6 +14,9 @@ export function createWaveform(canvas) {
   let progressFrac = 0;
   let lastPaint = 0;
   let palette = null;
+  // Musical modulation: lyric-line pulses + track-position energy envelope.
+  let energy = 1;
+  let pulseUntil = 0;
 
   function resolvePalette() {
     const cs = getComputedStyle(document.body);
@@ -24,8 +27,9 @@ export function createWaveform(canvas) {
   }
 
   function stepWalk() {
+    const boost = (performance.now() < pulseUntil ? 1.55 : 1) * energy;
     for (let i = 0; i < BARS; i++) {
-      const target = Math.pow(Math.random(), 1.4) * (1 - i / (BARS * 2.2));
+      const target = Math.pow(Math.random(), 1.4) * (1 - i / (BARS * 2.2)) * boost;
       levels[i] += (target - levels[i]) * 0.45;
     }
   }
@@ -67,5 +71,9 @@ export function createWaveform(canvas) {
   return {
     setOnAir(v) { onAir = v; if (!v) { levels.fill(0); progressFrac = 0; } },
     setProgress(frac) { progressFrac = Math.max(0, Math.min(1, frac || 0)); },
+    // A synced-lyric line just landed: kick the band for a beat.
+    pulse() { pulseUntil = performance.now() + 450; },
+    // 0.25..1.2 multiplier from track position (intro/outro breathe lower).
+    setEnergy(v) { energy = Math.max(0.25, Math.min(1.2, v || 1)); },
   };
 }

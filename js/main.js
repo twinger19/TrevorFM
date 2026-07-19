@@ -187,6 +187,7 @@ setInterval(() => {
   for (let i = 0; i < lyricsLines.length && lyricsLines[i].t <= ms; i++) idx = i;
   if (idx === lyricsIndex) return;
   lyricsIndex = idx;
+  if (idx >= 0) waveform?.pulse(); // a lyric line landing = real musical timing
   const scroll = $("lyricsScroll");
   const kids = scroll.children;
   for (let i = 0; i < kids.length; i++) kids[i].classList.toggle("current", i === idx);
@@ -768,6 +769,10 @@ setInterval(() => {
   if (!lastProgress?.duration) return waveform.setProgress(0);
   const ms = lastProgress.ms + (performance.now() - lastProgress.at);
   waveform.setProgress(ms / lastProgress.duration);
+  // Track-position energy envelope: intros ramp in, outros breathe down.
+  const intro = Math.min(1, ms / 12000);
+  const outro = Math.min(1, (lastProgress.duration - ms) / 15000);
+  waveform.setEnergy(Math.max(0.3, Math.min(intro, outro, 1)));
 }, 500);
 
 $("likeBtn").onclick = async () => {
