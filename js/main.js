@@ -775,13 +775,21 @@ setInterval(() => {
   waveform.setEnergy(Math.max(0.3, Math.min(intro, outro, 1)));
 }, 500);
 
+// Heart toggle: tap to save to Liked Songs, tap again to remove.
 $("likeBtn").onclick = async () => {
-  if (!currentTrackId || $("likeBtn").classList.contains("liked")) return;
+  if (!currentTrackId) return;
+  const wasLiked = $("likeBtn").classList.contains("liked");
+  $("likeBtn").classList.toggle("liked", !wasLiked); // optimistic
   try {
-    await spotify.saveTrack(currentTrackId);
-    $("likeBtn").classList.add("liked");
-    station.events.onLog("Saved to your Liked Songs.", "dj");
+    if (wasLiked) {
+      await spotify.unsaveTrack(currentTrackId);
+      station.events.onLog("Removed from your Liked Songs.", "dj");
+    } else {
+      await spotify.saveTrack(currentTrackId);
+      station.events.onLog("Saved to your Liked Songs.", "dj");
+    }
   } catch (e) {
+    $("likeBtn").classList.toggle("liked", wasLiked); // roll back
     station.events.onLog(
       e.message.includes("403")
         ? "Likes need a fresh login — hit Reconnect Spotify in Settings."

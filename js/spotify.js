@@ -43,6 +43,7 @@ export const spotify = {
   artist: (id) => api("GET", `/artists/${id}`),
   isTrackSaved: async (id) => (await api("GET", `/me/tracks/contains?ids=${id}`))[0],
   saveTrack: (id) => api("PUT", `/me/tracks?ids=${id}`),
+  unsaveTrack: (id) => api("DELETE", `/me/tracks?ids=${id}`),
   playerState: () => api("GET", "/me/player"),
   transferTo: (deviceId) => api("PUT", "/me/player", { device_ids: [deviceId], play: false }),
   play: (deviceId, uris) => api("PUT", `/me/player/play?device_id=${deviceId}`, { uris }),
