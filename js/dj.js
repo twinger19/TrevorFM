@@ -160,7 +160,7 @@ const LOTUS_VOICE = (weather) => [
   "by Brian Eno. Not a song so much as a room with the lights low. Stay in it a while.\"",
 ];
 
-export async function askDJ({ tasteProfile, playedSoFar, listenerRequest = null, showBrief = null, weather = null, dj = "fred", count = 4 }) {
+export async function askDJ({ tasteProfile, playedSoFar, listenerRequest = null, showBrief = null, weather = null, dj = "fred", announceShow = null, count = 4 }) {
   const requestOnly = !!listenerRequest && count === 1;
   const djName = dj === "lotus" ? "Lotus" : "Fred";
   const text = [
@@ -170,10 +170,10 @@ export async function askDJ({ tasteProfile, playedSoFar, listenerRequest = null,
       ? ["", `You are mid-show. The show is "${showBrief.name}" and its brief is: ${showBrief.desc}`, "Program within that brief."]
       : []),
     "",
-    "Listener taste profile (from their Spotify):",
+    "Listener taste profile (from their Spotify) — this is a STARTING POINT, not a playlist to echo:",
     JSON.stringify(tasteProfile),
     "",
-    "Already played this session (never repeat these, and avoid more than one track per artist per hour):",
+    "Recently played (never repeat any of these; also avoid more than one track per artist per hour):",
     JSON.stringify(playedSoFar),
     "",
     ...(listenerRequest
@@ -189,16 +189,30 @@ export async function askDJ({ tasteProfile, playedSoFar, listenerRequest = null,
     ...(requestOnly
       ? []
       : [
-          "Mostly inside their taste, but each block should include one adventurous pick a step outside it",
-          "(adjacent genre, deep cut, or an era jump). Sequence them like a radio set: flow, contrast, a peak.",
+          "VARIETY IS THE POINT. This station exists to broaden the listener's world, not replay",
+          "their Spotify rotation. In each block: at most ONE track from an artist in their taste",
+          "profile; the rest should be DISCOVERY — artists they don't already listen to but would",
+          "love, adjacent genres, deeper catalog, other eras, respected artists in the show's lane.",
+          "Lean on the GENRES more than the specific artists. Reach; surprise them. Sequence like a",
+          "radio set: flow, contrast, a peak. Never fill a block with their obvious favourites.",
         ]),
     "Use exact artist names and exact track titles so they resolve in Spotify search.",
     "",
     ...(requestOnly
       ? ["This is a request, so it ALWAYS gets a spoken intro."]
       : [
-          "TALK CADENCE: give a spoken intro to only 1 or 2 of the picks; leave the rest",
-          "with an empty intro so songs run back-to-back.",
+          "TALK CADENCE: give a spoken intro to 1 or 2 of the picks — never zero, so the DJ is",
+          "present every block. Leave the other picks with an empty intro so songs run back-to-back.",
+        ]),
+    ...(announceShow
+      ? ["",
+         `NEW SHOW STARTING: the show just changed to "${announceShow.name}" (${announceShow.desc})`,
+         "The FIRST spoken intro MUST welcome the listener into this show — name it and describe the",
+         "kind of music it plays, in your own voice — before presenting that first track.",
+        ]
+      : ["",
+         "Occasionally (not every block) let a spoken intro mention the show's name and the kind of",
+         "music you're playing, the way a real host reminds listeners what they're tuned into.",
         ]),
     "",
     ...(dj === "lotus" ? LOTUS_VOICE(weather) : FRED_VOICE(weather)),

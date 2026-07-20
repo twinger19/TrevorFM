@@ -10,6 +10,36 @@ const POLL_MS = 4000;
 const TOPUP_WHEN_REMAINING = 2;
 const BLOCK_SIZE = 4;
 
+// Persistent 24h play-history so no song repeats within a day, even across
+// restarts. Records every track that actually plays (radio or direct Spotify).
+const HISTORY_KEY = "tfm_history";
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function loadHistory() {
+  try {
+    const cutoff = Date.now() - DAY_MS;
+    return (JSON.parse(localStorage.getItem(HISTORY_KEY)) || []).filter((h) => h.at > cutoff);
+  } catch {
+    return [];
+  }
+}
+
+function recordPlay(uri, label) {
+  const arr = loadHistory();
+  if (arr.length && arr[arr.length - 1].uri === uri) return; // de-dupe repeats
+  arr.push({ uri, label, at: Date.now() });
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(arr));
+}
+
+function recentUris() {
+  return new Set(loadHistory().map((h) => h.uri));
+}
+
+// Cap the labels handed to the DJ so the prompt stays lean.
+function recentLabels(cap = 60) {
+  return loadHistory().slice(-cap).map((h) => h.label);
+}
+
 export class Station {
   constructor(events) {
     this.events = events; // { onNowPlaying, onUpNext, onLog, onStatus }
@@ -25,6 +55,7 @@ export class Station {
     this.weatherText = null; // set from outside; passed to the DJ
     this.pendingPlayNext = null; // a request that cuts in at the next song boundary
     this.announcing = false;
+    this.currentShowName = null; // for detecting show transitions to announce
   }
 
   // A request works whether or not the station is live: the DJ finds the
@@ -89,13 +120,18 @@ export class Station {
     };
   }
 
-  async resolvePicks(picks) {
+  async resolvePicks(picks, { skipRecent = false } = {}) {
+    const recent = skipRecent ? recentUris() : null;
     const resolved = [];
     for (const pick of picks) {
       try {
         const track = await spotify.searchTrack(`track:${pick.title} artist:${pick.artist}`)
           || await spotify.searchTrack(`${pick.title} ${pick.artist}`);
         if (track) {
+          if (recent && recent.has(track.uri)) {
+            this.log(`Skipped "${trackLabel(track)}" — played in the last 24h.`, "dj");
+            continue;
+          }
           if (pick.intro?.trim()) this.introByUri.set(track.uri, pick.intro.trim());
           resolved.push(track);
         } else {
@@ -110,17 +146,26 @@ export class Station {
 
   async programBlock(count) {
     this.events.onDJLine?.("programming the next block…", "dj");
+    // Detect a show transition (scheduled or an instant mood) to announce it.
+    const show = effectiveBlock();
+    let announceShow = null;
+    if (show && show.name !== this.currentShowName) {
+      announceShow = { name: show.name, desc: show.desc };
+      this.currentShowName = show.name;
+    }
     const { picks, segueNote } = await askDJ({
       tasteProfile: this.tasteProfile,
-      playedSoFar: this.playedTitles.concat(this.upNext.map(trackLabel)),
-      showBrief: effectiveBlock(),
+      // 24h history + this session's plays + what's already queued — nothing repeats.
+      playedSoFar: [...new Set([...recentLabels(), ...this.playedTitles, ...this.upNext.map(trackLabel)])],
+      showBrief: show,
       weather: this.weatherText,
       dj: currentDJ(),
+      announceShow,
       count,
     });
     this.log(`DJ: ${segueNote}`, "dj");
     this.events.onDJLine?.(segueNote, "dj");
-    return this.resolvePicks(picks);
+    return this.resolvePicks(picks, { skipRecent: true });
   }
 
   async start(deviceId) {
@@ -153,6 +198,7 @@ export class Station {
     this.events.onDJLine?.(`switching to ${label.toLowerCase()}…`, "dj");
     this.introByUri.clear();
     this.pendingPlayNext = null;
+    this.currentShowName = null; // force the new mood/show to be announced
     const tracks = await this.programBlock(BLOCK_SIZE);
     if (!tracks.length) { this.log("Couldn't program that mood — try again.", "warn"); return; }
     await spotify.play(this.deviceId, [tracks[0].uri]);
@@ -172,6 +218,7 @@ export class Station {
       if (item.uri !== this.lastUri) {
         this.lastUri = item.uri;
         this.playedTitles.push(trackLabel(item));
+        recordPlay(item.uri, trackLabel(item)); // persistent 24h no-repeat memory
         this.upNext = this.upNext.filter((t) => t.uri !== item.uri);
         this.events.onNowPlaying(item);
         this.events.onUpNext(this.upNext);
