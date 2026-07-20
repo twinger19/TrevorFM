@@ -168,8 +168,14 @@
     <label>ElevenLabs voice ID <input id="setElevenVoiceId" placeholder="blank = Rachel (default)" /></label>
     <label>Fred's voice <select id="setVoice"></select></label>
     <label>Duck volume while DJ talks <input type="range" id="setDuck" min="0" max="60" step="5" /></label>
+    <hr class="settings-sep" />
+    <label>Schedule sync URL <input id="setSyncUrl" placeholder="your Cloudflare Worker URL" autocomplete="off" /></label>
+    <label>Schedule sync secret <input id="setSyncSecret" type="password" placeholder="shared secret from the Worker" autocomplete="off" /></label>
+    <p class="sync-status mono" id="syncStatus" hidden></p>
+    <p class="fine">Sync keeps this schedule in step with the iOS app. Same URL + secret in both. <a href="cloudflare-sync/README.md" target="_blank" rel="noopener">Setup guide</a>.</p>
     <div class="dialog-actions">
       <button id="testVoiceBtn" class="text-btn">Test voice</button>
+      <button id="testSyncBtn" class="text-btn">Test sync</button>
       <button id="reconnectBtn" class="text-btn">Reconnect Spotify</button>
       <button id="saveSettingsBtn" class="solid">Save</button>
     </div>

@@ -612,6 +612,9 @@ input::placeholder { color: var(--muted); }
 #requestForm { display: flex; flex-direction: column; gap: 14px; }
 .request-hint { color: var(--muted); font-size: 13.5px; line-height: 1.5; }
 
+.settings-sep { border: none; border-top: 1px solid var(--soft-border); margin: 16px 0; }
+.sync-status { font-size: 12px; color: var(--ink); margin: 4px 0 0; }
+
 /* Tune-in overlay */
 #tuneOverlay {
   position: fixed;

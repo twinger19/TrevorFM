@@ -34,6 +34,8 @@ const KEYS = {
   elevenKey: "tfm_eleven_key",
   elevenVoiceId: "tfm_eleven_voice_id",
   djOverride: "tfm_dj_override",
+  syncUrl: "tfm_sync_url",
+  syncSecret: "tfm_sync_secret",
 };
 
 export const settings = {
@@ -60,4 +62,9 @@ export const settings = {
     return v === "ellen" ? "lotus" : v; // pre-rename saves
   },
   set djOverride(v) { localStorage.setItem(KEYS.djOverride, v); },
+  // Cross-device schedule sync (Cloudflare Worker URL + shared secret).
+  get syncUrl() { return localStorage.getItem(KEYS.syncUrl) || ""; },
+  set syncUrl(v) { localStorage.setItem(KEYS.syncUrl, v.trim()); },
+  get syncSecret() { return localStorage.getItem(KEYS.syncSecret) || ""; },
+  set syncSecret(v) { localStorage.setItem(KEYS.syncSecret, v.trim()); },
 };

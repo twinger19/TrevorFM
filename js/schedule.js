@@ -127,12 +127,34 @@ export function currentDJ(date = new Date()) {
   return DJS.includes(block?.dj) ? block.dj : "fred";
 }
 
+const UPDATED_KEY = "tfm_schedule_updated";
+
+export function scheduleUpdatedAt() {
+  return Number(localStorage.getItem(UPDATED_KEY) || 0);
+}
+
+// A save hook so main.js can push to the cloud without schedule.js importing
+// the sync module (avoids a circular import).
+let onScheduleSaved = null;
+export function setOnScheduleSaved(fn) { onScheduleSaved = fn; }
+
+// Adopt a schedule pulled from the cloud WITHOUT re-pushing it (and stamp the
+// remote's timestamp so we don't bounce it back).
+export function adoptSchedule(week, updatedAt) {
+  localStorage.setItem(KEY, JSON.stringify(week));
+  localStorage.setItem(UPDATED_KEY, String(updatedAt));
+}
+
 export function saveSchedule(week) {
   localStorage.setItem(KEY, JSON.stringify(week));
+  localStorage.setItem(UPDATED_KEY, String(Date.now()));
+  onScheduleSaved?.();
 }
 
 export function resetSchedule() {
   localStorage.removeItem(KEY);
+  localStorage.setItem(UPDATED_KEY, String(Date.now()));
+  onScheduleSaved?.();
   return defaults();
 }
 

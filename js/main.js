@@ -10,10 +10,11 @@ import { initBrowserPlayer, activateBrowserPlayback } from "./player.js";
 import { createWaveform } from "./waveform.js";
 import { createBuddy } from "./buddy.js";
 import { loadSchedule, saveSchedule, resetSchedule, currentBlock, dayKey, fmtHour, DAYS, DAY_LABELS, DJ_LABELS,
-  INSTANT_BLOCKS, setInstantBlock, activeInstantBlock } from "./schedule.js";
+  INSTANT_BLOCKS, setInstantBlock, activeInstantBlock, setOnScheduleSaved } from "./schedule.js";
 import { suggestSchedule } from "./dj.js";
 import { fetchSyncedLyrics } from "./lyrics.js";
 import { getWeather } from "./weather.js";
+import { pullSchedule, pushSchedule, testSync } from "./sync.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -721,6 +722,9 @@ function fillSettingsForm() {
   $("setStationName").value = settings.stationName;
   $("setClientId").value = settings.clientId;
   $("setGeminiKey").value = settings.geminiKey;
+  $("setSyncUrl").value = settings.syncUrl;
+  $("setSyncSecret").value = settings.syncSecret;
+  $("syncStatus").hidden = true;
   $("setDuck").value = settings.duckVolume;
   $("setDJOverride").value = settings.djOverride;
   $("setElevenKey").value = settings.elevenKey;
@@ -748,9 +752,20 @@ $("saveSettingsBtn").onclick = () => {
   settings.djOverride = $("setDJOverride").value;
   settings.elevenKey = $("setElevenKey").value;
   settings.elevenVoiceId = $("setElevenVoiceId").value;
+  settings.syncUrl = $("setSyncUrl").value;
+  settings.syncSecret = $("setSyncSecret").value;
   $("settingsDialog").close();
   refreshSetupState();
   refreshDevices();
+  pushSchedule(); // publish local schedule to any newly-configured sync
+};
+
+$("testSyncBtn").onclick = async () => {
+  settings.syncUrl = $("setSyncUrl").value;
+  settings.syncSecret = $("setSyncSecret").value;
+  $("syncStatus").textContent = "checking…";
+  $("syncStatus").hidden = false;
+  $("syncStatus").textContent = await testSync();
 };
 
 $("reconnectBtn").onclick = () => {
@@ -925,11 +940,19 @@ document.addEventListener("keydown", (e) => {
 
 speechSynthesis.onvoiceschanged = () => {};
 
+// Any local schedule edit (save/add/reset/AI) publishes to the cloud store.
+setOnScheduleSaved(() => { pushSchedule(); });
+
 // ---------- boot ----------
 
 (async () => {
   await handleCallback();
   refreshSetupState();
+  // Pull a newer schedule from the cloud before first render.
+  if (await pullSchedule() === "adopted") {
+    refreshShowNow();
+    if (openDrawerName === "schedule") renderSchedule();
+  }
   if (isLoggedIn()) {
     initBrowserPlayer({
       onReady(deviceId) {
