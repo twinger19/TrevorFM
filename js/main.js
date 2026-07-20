@@ -405,7 +405,13 @@ function openDrawer(name) {
   $("drawer").hidden = false;
   if (name === "request") $("requestInput").focus();
   if (name === "timeline") renderTimeline();
-  if (name === "schedule") renderSchedule();
+  if (name === "schedule") {
+    renderSchedule();
+    // Pull any newer schedule from the cloud (e.g. an edit made on iOS),
+    // then re-render if it changed. Web previously only pulled on page load,
+    // so an already-open tab never saw remote edits.
+    pullSchedule().then((r) => { if (r === "adopted") { renderSchedule(); refreshShowNow(); } });
+  }
   if (name === "booth") renderBooth();
   if (name === "moods") renderMoods();
 }
