@@ -1,4 +1,4 @@
-// Tiny static server for TrevorFM. No dependencies.
+// Tiny static server for the Frediohead FM program-director console.
 // Run: node server.js  ->  http://127.0.0.1:8888
 const http = require("http");
 const fs = require("fs");
@@ -24,8 +24,7 @@ http
       return res.end();
     }
     let urlPath = req.url.split("?")[0];
-    // OAuth callback and any client-side route serve the app shell.
-    if (urlPath === "/" || urlPath === "/callback") urlPath = "/index.html";
+    if (urlPath === "/") urlPath = "/index.html";
     const filePath = path.join(ROOT, path.normalize(urlPath));
     if (!filePath.startsWith(ROOT)) {
       res.writeHead(403);
