@@ -17,6 +17,7 @@
         <circle cx="12" cy="12" r="4" fill="var(--accent)"/>
       </svg>
       <span id="stationName">FREDIOHEAD FM</span>
+      <span class="wx" id="wxNow" hidden></span>
       <span class="show-now" id="showNow"></span>
     </div>
     <button class="icon-btn" id="settingsBtn" title="Settings" aria-label="Settings">
@@ -162,6 +163,8 @@
       <select id="setDJOverride"></select>
     </label>
     <label>Fred's voice <select id="setVoice"></select></label>
+    <label>ElevenLabs key <input id="setElevenKey" type="password" placeholder="leave blank to use the Worker's key" autocomplete="off" /></label>
+    <p class="fine">Lotus and Marlowe speak through ElevenLabs. Normally the Worker's own key is used — paste one here only to override it, e.g. after rotating the key.</p>
     <label>Duck volume while DJ talks <input type="range" id="setDuck" min="0" max="60" step="5" /></label>
     <hr class="settings-sep" />
     <label>Schedule sync URL <input id="setSyncUrl" placeholder="your Cloudflare Worker URL" autocomplete="off" /></label>
@@ -174,7 +177,7 @@
       <button id="reconnectBtn" class="text-btn">Sign out of Apple Music</button>
       <button id="saveSettingsBtn" class="solid">Save</button>
     </div>
-    <p class="fine">The Gemini key is stored in this browser. The Apple Music key and the ElevenLabs key live on your Cloudflare Worker — never in this page or the repo. <span id="wxAttribution"></span></p>
+    <p class="fine">The Gemini key — and an ElevenLabs key, if you set one above — are stored in this browser only, never in the repo. The Apple Music signing key stays on your Cloudflare Worker and never reaches this page. <span id="wxAttribution"></span></p>
   </dialog>
 
   <script type="module" src="./js/main.js"></script>

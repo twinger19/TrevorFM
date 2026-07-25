@@ -16,7 +16,7 @@ import { findDJ } from "./djs.js";
 
 let voiceLogger = (msg) => console.warn(msg);
 export function setVoiceLogger(fn) { voiceLogger = fn; }
-let warnedProxy = false;
+let warnedProxy = null; // last message reported, so a new fault still speaks up
 
 export function availableVoices() {
   return speechSynthesis.getVoices().filter((v) => v.lang.startsWith("en"));
@@ -73,9 +73,13 @@ async function fetchVoiceAudio(text, voiceId) {
     throw new Error("no Worker configured");
   }
   const url = settings.syncUrl.replace(/\/+$/, "") + "/speak";
+  const headers = { "x-sync-secret": settings.syncSecret, "content-type": "application/json" };
+  // Only sent when the listener has pasted one — otherwise the Worker uses
+  // its own stored key and nothing sensitive leaves this page.
+  if (settings.elevenKey) headers["x-eleven-key"] = settings.elevenKey;
   const res = await fetch(url, {
     method: "PUT",
-    headers: { "x-sync-secret": settings.syncSecret, "content-type": "application/json" },
+    headers,
     body: JSON.stringify({ text, voiceId }),
   });
   if (!res.ok) {
@@ -125,9 +129,11 @@ async function prepareSpeaker(djId, text) {
       const url = await fetchVoiceAudio(text, host.voice.voiceId);
       return { play: (onNearEnd) => playAudioUrl(url, onNearEnd) };
     } catch (e) {
-      if (!warnedProxy) {
-        warnedProxy = true;
-        voiceLogger(`${host.name}'s voice is unavailable (${e.message}) — Fred is covering.`);
+      // Repeat the same complaint once, but never swallow a NEW one — a
+      // changed message means the problem changed and the listener needs it.
+      if (warnedProxy !== e.message) {
+        warnedProxy = e.message;
+        voiceLogger(`${host.name}'s voice is unavailable — ${e.message} Fred is covering.`);
       }
     }
   }

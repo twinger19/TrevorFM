@@ -1,12 +1,18 @@
 // Settings live in localStorage so the repo holds no secrets.
 //
-// Note what is NOT here: the Apple developer key, the ElevenLabs key, and
-// the Gemini key on a hosted deployment. Those live on the Cloudflare
-// Worker, which signs MusicKit tokens and proxies voice audio — a public
-// repo can't hold credentials, and a browser shouldn't either.
+// The Apple developer key never appears here — it signs MusicKit tokens on
+// the Cloudflare Worker and must not reach a browser at all.
+//
+// The ElevenLabs key normally lives on the Worker too. The optional field
+// here is an override for when that stored key stops working (rotated,
+// revoked, expired): rather than being locked out until the Worker is
+// edited, the key can be set in this browser and is forwarded to the
+// Worker per request. Same posture as the Gemini key — this browser only,
+// never the repo.
 
 const KEYS = {
   geminiKey: "tfm_gemini_key",
+  elevenKey: "tfm_eleven_key",
   duckVolume: "tfm_duck_volume",
   playVolume: "tfm_play_volume",
   voiceName: "tfm_voice_name",
@@ -19,6 +25,9 @@ const KEYS = {
 export const settings = {
   get geminiKey() { return localStorage.getItem(KEYS.geminiKey) || ""; },
   set geminiKey(v) { localStorage.setItem(KEYS.geminiKey, v.trim()); },
+  // Blank means "use whatever key the Worker holds" — the normal case.
+  get elevenKey() { return localStorage.getItem(KEYS.elevenKey) || ""; },
+  set elevenKey(v) { localStorage.setItem(KEYS.elevenKey, v.trim()); },
   get duckVolume() { return Number(localStorage.getItem(KEYS.duckVolume) || 20); },
   set duckVolume(v) { localStorage.setItem(KEYS.duckVolume, String(v)); },
   get playVolume() { return Number(localStorage.getItem(KEYS.playVolume) || 70); },

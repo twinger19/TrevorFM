@@ -35,7 +35,7 @@ const KEY = "schedule";
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, PUT, OPTIONS",
-  "Access-Control-Allow-Headers": "content-type, x-sync-secret",
+  "Access-Control-Allow-Headers": "content-type, x-sync-secret, x-eleven-key",
 };
 
 const TOKEN_TTL_SECONDS = 60 * 60 * 12; // short-lived; the app refetches freely
@@ -64,8 +64,13 @@ export default {
     // can't call their API directly (no CORS headers), and this keeps the
     // API key server-side instead of shipping it to every visitor.
     if (url.pathname.endsWith("/speak") && request.method === "PUT") {
-      if (!env.ELEVENLABS_KEY) {
-        return json({ error: "ELEVENLABS_KEY isn't set on the Worker." }, 500);
+      // A key sent by the client wins over the stored one. That's the escape
+      // hatch for a rotated/revoked ELEVENLABS_KEY: the listener can fix it
+      // from Settings instead of being mute until this Worker is edited.
+      const clientKey = request.headers.get("x-eleven-key");
+      const apiKey = clientKey || env.ELEVENLABS_KEY;
+      if (!apiKey) {
+        return json({ error: "No ElevenLabs key — set ELEVENLABS_KEY on the Worker, or paste one in Settings." }, 500);
       }
       const { text, voiceId } = await request.json();
       if (!text || !voiceId) return json({ error: "text and voiceId are required" }, 400);
@@ -73,7 +78,7 @@ export default {
         `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_64`,
         {
           method: "POST",
-          headers: { "xi-api-key": env.ELEVENLABS_KEY, "content-type": "application/json" },
+          headers: { "xi-api-key": apiKey, "content-type": "application/json" },
           body: JSON.stringify({
             text,
             model_id: "eleven_turbo_v2_5",
@@ -82,7 +87,17 @@ export default {
         }
       );
       if (!upstream.ok) {
-        return json({ error: `ElevenLabs ${upstream.status}: ${await upstream.text()}` }, upstream.status);
+        // Name the failure mode, and say which key actually failed — the
+        // stored one and a pasted one need different fixes.
+        const whose = clientKey ? "The key in Settings" : "The Worker's stored ELEVENLABS_KEY";
+        const body = await upstream.text();
+        const error =
+          upstream.status === 401
+            ? `${whose} was rejected by ElevenLabs (401). If you rotated it, paste the current key in Settings.`
+            : upstream.status === 402
+              ? `ElevenLabs won't serve this voice on the current plan (402) — Voice Library voices need a paid plan.`
+              : `ElevenLabs ${upstream.status}: ${body}`;
+        return json({ error }, upstream.status);
       }
       return new Response(upstream.body, {
         headers: { ...CORS, "content-type": "audio/mpeg" },

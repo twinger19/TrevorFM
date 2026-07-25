@@ -127,7 +127,10 @@ async function loadLyrics(item) {
 function paintLyrics(ms) {
   if (!lyricsLines) return;
   let idx = -1;
-  for (let i = 0; i < lyricsLines.length; i++) if (lyricsLines[i].tMs <= ms) idx = i;
+  // lyrics.js stamps each line as `t` (ms). Reading a differently-named
+  // field here compares undefined <= ms, which is always false — the index
+  // never advances and the column sits frozen on line one.
+  for (let i = 0; i < lyricsLines.length; i++) if (lyricsLines[i].t <= ms) idx = i;
   if (idx === lyricsIndex) return;
   lyricsIndex = idx;
   waveform?.pulse();
@@ -236,18 +239,44 @@ $("loginBtn").addEventListener("click", async () => {
 
 // ── weather (open-meteo: keyless, and the browser has no WeatherKit) ─────
 
-async function currentWeatherLine() {
+// Where the listener is. The browser only answers while the permission
+// holds, so the last good fix is cached — a later denial or timeout then
+// costs the DJ nothing. Weather is never invented: no fix, no weather.
+const COORDS_KEY = "tfm_coords";
+
+async function listenerCoords() {
   try {
     const pos = await new Promise((res, rej) =>
-      navigator.geolocation.getCurrentPosition(res, rej, { maximumAge: 1800000, timeout: 6000 })
+      navigator.geolocation.getCurrentPosition(res, rej, { maximumAge: 1800000, timeout: 8000 })
     );
-    const { latitude, longitude } = pos.coords;
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude.toFixed(2)}&longitude=${longitude.toFixed(2)}&current=temperature_2m,weather_code&daily=sunrise,sunset&temperature_unit=fahrenheit&timezone=auto`;
+    const coords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+    localStorage.setItem(COORDS_KEY, JSON.stringify(coords));
+    return coords;
+  } catch {
+    try {
+      const cached = JSON.parse(localStorage.getItem(COORDS_KEY));
+      if (cached?.lat != null) return cached;
+    } catch {}
+    return null;
+  }
+}
+
+async function currentWeatherLine() {
+  const at = await listenerCoords();
+  if (!at) {
+    paintWeather(null);
+    pushFeed("warn", "No location, so the DJs won't mention weather. Allow location for this site and reload.");
+    return null;
+  }
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${at.lat.toFixed(2)}&longitude=${at.lon.toFixed(2)}&current=temperature_2m,weather_code&daily=sunrise,sunset&temperature_unit=fahrenheit&timezone=auto`;
     const res = await fetch(url);
-    if (!res.ok) return null;
+    if (!res.ok) { paintWeather(null); return null; }
     const d = await res.json();
+    const code = d.current?.weather_code;
     const temp = Math.round(d.current?.temperature_2m);
-    const cond = WMO[d.current?.weather_code] || "unsettled";
+    if (!Number.isFinite(temp)) { paintWeather(null); return null; }
+    const cond = WMO[code]?.label || "unsettled";
     let line = `${temp}°F, ${cond}`;
     const sunset = d.daily?.sunset?.[0] && new Date(d.daily.sunset[0]);
     const sunrise = d.daily?.sunrise?.[0] && new Date(d.daily.sunrise[0]);
@@ -259,18 +288,61 @@ async function currentWeatherLine() {
         ? `; ${near[0]} ${near[1] < now ? `was ${mins} min ago` : `in ${mins} min`}`
         : `; ${near[0]} at ${near[1].toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
     }
-    $("wxNow") && ($("wxNow").textContent = `${temp}°`);
+    paintWeather({ temp, code, cond });
     return line;
   } catch {
+    paintWeather(null);
     return null;
   }
 }
 
+// Condition icon + temperature in the masthead, matching the iOS header.
+function paintWeather(now) {
+  const el = $("wxNow");
+  if (!el) return;
+  if (!now) { el.hidden = true; el.innerHTML = ""; return; }
+  el.hidden = false;
+  el.title = `${now.temp}°F, ${now.cond}`;
+  el.innerHTML = `${WMO[now.code]?.icon || WX_ICON.cloud}<span>${now.temp}°</span>`;
+}
+
+// Small line-art glyphs that inherit currentColor, like the record mark.
+const svg = (body) =>
+  `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">${body}</svg>`;
+
+const WX_ICON = {
+  sun: svg(`<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.2 5.2l1.4 1.4M17.4 17.4l1.4 1.4M18.8 5.2l-1.4 1.4M6.6 17.4l-1.4 1.4"/>`),
+  partly: svg(`<circle cx="9" cy="9" r="3.2"/><path d="M9 2.6v1.6M2.6 9h1.6M4.9 4.9l1.1 1.1M13.1 4.9 12 6"/><path d="M8.5 19h9a3.2 3.2 0 0 0 .3-6.4 4.6 4.6 0 0 0-8.8-.7A3.4 3.4 0 0 0 8.5 19Z"/>`),
+  cloud: svg(`<path d="M7 18.5h10a3.5 3.5 0 0 0 .3-7 5 5 0 0 0-9.6-.8A3.7 3.7 0 0 0 7 18.5Z"/>`),
+  fog: svg(`<path d="M6.5 13.5h11a3.2 3.2 0 0 0 .3-6.4 4.7 4.7 0 0 0-9-.7 3.4 3.4 0 0 0-2.3 7.1Z"/><path d="M4 17.5h16M6.5 21h11"/>`),
+  drizzle: svg(`<path d="M7 15.5h10a3.5 3.5 0 0 0 .3-7 5 5 0 0 0-9.6-.8A3.7 3.7 0 0 0 7 15.5Z"/><path d="M9 18.5v1.6M12.5 18.5v2.4M16 18.5v1.6"/>`),
+  rain: svg(`<path d="M7 15h10a3.5 3.5 0 0 0 .3-7 5 5 0 0 0-9.6-.8A3.7 3.7 0 0 0 7 15Z"/><path d="M8.6 18.2 7.7 21M12.4 18.2l-.9 2.8M16.2 18.2l-.9 2.8"/>`),
+  snow: svg(`<path d="M7 14.5h10a3.5 3.5 0 0 0 .3-7 5 5 0 0 0-9.6-.8A3.7 3.7 0 0 0 7 14.5Z"/><path d="M9 18h.01M12.5 20h.01M16 18h.01M12.5 17h.01"/>`),
+  storm: svg(`<path d="M7 14h10a3.5 3.5 0 0 0 .3-7 5 5 0 0 0-9.6-.8A3.7 3.7 0 0 0 7 14Z"/><path d="m13 16.5-3 3.5h3l-1 3"/>`),
+};
+
 const WMO = {
-  0: "clear", 1: "partly cloudy", 2: "partly cloudy", 3: "overcast", 45: "fog", 48: "fog",
-  51: "drizzle", 53: "drizzle", 55: "drizzle", 61: "rain", 63: "rain", 65: "heavy rain",
-  71: "snow", 73: "snow", 75: "snow", 80: "rain", 81: "rain", 82: "heavy rain",
-  95: "thunderstorms", 96: "thunderstorms", 99: "thunderstorms",
+  0: { label: "clear", icon: WX_ICON.sun },
+  1: { label: "partly cloudy", icon: WX_ICON.partly },
+  2: { label: "partly cloudy", icon: WX_ICON.partly },
+  3: { label: "overcast", icon: WX_ICON.cloud },
+  45: { label: "fog", icon: WX_ICON.fog },
+  48: { label: "fog", icon: WX_ICON.fog },
+  51: { label: "drizzle", icon: WX_ICON.drizzle },
+  53: { label: "drizzle", icon: WX_ICON.drizzle },
+  55: { label: "drizzle", icon: WX_ICON.drizzle },
+  61: { label: "rain", icon: WX_ICON.rain },
+  63: { label: "rain", icon: WX_ICON.rain },
+  65: { label: "heavy rain", icon: WX_ICON.rain },
+  71: { label: "snow", icon: WX_ICON.snow },
+  73: { label: "snow", icon: WX_ICON.snow },
+  75: { label: "snow", icon: WX_ICON.snow },
+  80: { label: "rain", icon: WX_ICON.rain },
+  81: { label: "rain", icon: WX_ICON.rain },
+  82: { label: "heavy rain", icon: WX_ICON.rain },
+  95: { label: "thunderstorms", icon: WX_ICON.storm },
+  96: { label: "thunderstorms", icon: WX_ICON.storm },
+  99: { label: "thunderstorms", icon: WX_ICON.storm },
 };
 
 // ── setup state / masthead ──────────────────────────────────────────────
@@ -551,6 +623,7 @@ $("requestForm").addEventListener("submit", async (e) => {
 function fillSettingsForm() {
   $("setStationName").value = settings.stationName;
   $("setGeminiKey").value = settings.geminiKey;
+  $("setElevenKey").value = settings.elevenKey;
   $("setSyncUrl").value = settings.syncUrl;
   $("setSyncSecret").value = settings.syncSecret;
   $("setDuck").value = settings.duckVolume;
@@ -569,6 +642,7 @@ $("saveSettingsBtn").addEventListener("click", (e) => {
   e.preventDefault();
   settings.stationName = $("setStationName").value;
   settings.geminiKey = $("setGeminiKey").value;
+  settings.elevenKey = $("setElevenKey").value;
   settings.syncUrl = $("setSyncUrl").value;
   settings.syncSecret = $("setSyncSecret").value;
   settings.duckVolume = Number($("setDuck").value);
@@ -642,5 +716,7 @@ const escapeAttr = escapeHTML;
   refreshShowNow();
   setInterval(() => { pullSchedule().then(refreshShowNow); }, 60000);
   setInterval(refreshShowNow, 60000);
-  currentWeatherLine().then((w) => { station.weatherText = w; });
+  const refreshWeather = () => currentWeatherLine().then((w) => { station.weatherText = w; });
+  refreshWeather();
+  setInterval(refreshWeather, 30 * 60 * 1000); // conditions drift; the masthead shouldn't
 })();
