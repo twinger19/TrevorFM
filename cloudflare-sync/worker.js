@@ -16,8 +16,9 @@
 // CORS is open so the browser app (a different origin) can call it.
 //
 // ── SETUP ───────────────────────────────────────────────────────────────
-// Requires a KV namespace bound as `KV`, plus — for the token endpoint —
-// three Worker settings (Worker ▸ Settings ▸ Variables):
+// Requires a KV namespace bound as `KV`, plus these Worker settings
+// (Worker ▸ Settings ▸ Variables):
+//   SYNC_SECRET          the shared secret, same as the apps (SECRET — encrypt)
 //   MUSICKIT_TEAM_ID     your 10-char Apple Team ID          (plaintext ok)
 //   MUSICKIT_KEY_ID      the 10-char Key ID from the .p8     (plaintext ok)
 //   MUSICKIT_PRIVATE_KEY the .p8 file's FULL contents        (SECRET — encrypt)
@@ -29,7 +30,11 @@
 //    the page.
 //      PUT  /speak  { text, voiceId } -> audio/mpeg
 
-const SECRET = "tfm_99fdf2ec98f6b336c30e1301547d307a2f5ac5ee";
+// The shared secret lives in the Worker's own settings, NOT in this file.
+// It used to be a literal here — which meant publishing it to anyone who
+// read the repo, since this is public. Set SYNC_SECRET under
+// Worker ▸ Settings ▸ Variables (encrypt it), using the same value the iOS
+// app and the web Settings page carry.
 const KEY = "schedule";
 
 const CORS = {
@@ -45,7 +50,16 @@ export default {
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: CORS });
     }
-    if (request.headers.get("x-sync-secret") !== SECRET) {
+    // No secret configured means this Worker cannot authenticate anyone —
+    // fail loudly rather than falling open, and say exactly what's missing.
+    const secret = env.SYNC_SECRET;
+    if (!secret) {
+      return json(
+        { error: "SYNC_SECRET isn't set on this Worker. Add it under Settings ▸ Variables (encrypted), then Deploy." },
+        500
+      );
+    }
+    if (request.headers.get("x-sync-secret") !== secret) {
       return new Response("forbidden", { status: 403, headers: CORS });
     }
 

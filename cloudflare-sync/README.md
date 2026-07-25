@@ -19,20 +19,45 @@ the iOS app stay in sync. Free tier, data lives only on your Cloudflare account.
 6. Copy your Worker's URL from the top of the Worker page — it looks like
    `https://frediradio-sync.YOURNAME.workers.dev`.
 
+7. Add the Worker's settings: Worker → **Settings → Variables**. Add
+   **`SYNC_SECRET`** and click **Encrypt**. Generate a value with:
+
+   ```
+   openssl rand -hex 20
+   ```
+
+   Then **Deploy**. (The token and voice endpoints need `MUSICKIT_TEAM_ID`,
+   `MUSICKIT_KEY_ID`, `MUSICKIT_PRIVATE_KEY` and `ELEVENLABS_KEY` here too —
+   see the header comment in `worker.js`.)
+
 ## Put it in both apps
 
 In **each** app's Settings, paste:
 - **Sync URL**: your Worker URL from step 6
-- **Sync secret**: `tfm_99fdf2ec98f6b336c30e1301547d307a2f5ac5ee`
-  (this is already baked into `worker.js` — the apps just need the same value)
+- **Sync secret**: the same `SYNC_SECRET` value you set in step 7
 
 That's it. Edit the schedule on either app; the other picks it up next time it
 opens. Last edit wins.
 
-## Notes
+## About the secret
 
-- The secret is the only thing guarding read/write. It's in the Worker code
-  (private to your Cloudflare account) and in each app's local settings — never
-  in the public web repo.
-- To rotate the secret later: change `SECRET` in `worker.js`, redeploy, and
-  update both apps' Settings.
+The secret is the only thing guarding read/write on your Worker, and the only
+thing stopping a stranger from running up your ElevenLabs bill through the
+`/speak` proxy.
+
+**It must never be written in `worker.js`.** This repo is public, so a literal
+there is published to everyone. It lives in the Worker's encrypted variables
+and in each app's local settings instead — three places, same value, none of
+them in git.
+
+### Rotating it
+
+Do this if the value was ever committed, pasted into a chat, or shared.
+
+1. Generate a new one: `openssl rand -hex 20`
+2. Worker → **Settings → Variables** → update `SYNC_SECRET` → **Deploy**.
+3. Paste the same value into **iOS Settings → Schedule sync → Sync secret**.
+4. Paste it into **web Settings → Schedule sync secret**.
+
+Sync is down between steps 2 and 4 — the apps get a `403` until their secret
+matches again. Nothing is lost; the schedule sits in KV the whole time.
