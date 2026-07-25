@@ -39,13 +39,33 @@ async function fetchDeveloperToken() {
   }
   const url = settings.syncUrl.replace(/\/+$/, "") + "/musickit-token";
   const res = await fetch(url, { headers: { "x-sync-secret": settings.syncSecret } });
-  if (res.status === 404) {
-    throw new Error("Your Worker doesn't have /musickit-token yet — redeploy it from cloudflare-sync/.");
+  if (res.status === 403) {
+    throw new Error("The Worker rejected the sync secret — check it in Settings.");
   }
+  if (res.status === 404) {
+    throw new Error("Your Worker has no /musickit-token route — redeploy it from cloudflare-sync/worker.js.");
+  }
+
+  let body = null;
+  try { body = await res.json(); } catch {}
+
+  // The Worker reports its own failures in `error` (e.g. the MusicKit
+  // variables aren't set) — surface that rather than a bare status code.
+  if (body?.error) throw new Error(`Worker: ${body.error}`);
   if (!res.ok) throw new Error(`Token request failed (HTTP ${res.status}).`);
-  const { token } = await res.json();
-  if (!token) throw new Error("Worker returned no token — check the MusicKit key is set.");
-  return token;
+
+  if (!body?.token) {
+    // The OLD worker ignored the path and answered every GET with the sync
+    // blob — a 200 with schedule data instead of a token. That's the single
+    // most likely cause here, so name it instead of blaming the key.
+    const looksLikeSyncBlob = body && ("week" in body || "updatedAt" in body || body === null);
+    throw new Error(
+      looksLikeSyncBlob
+        ? "That Worker is still the old sync-only version — redeploy it from cloudflare-sync/worker.js to add the token endpoint."
+        : "The Worker answered without a token. Redeploy it from cloudflare-sync/worker.js and set the MUSICKIT_* variables."
+    );
+  }
+  return body.token;
 }
 
 export const music = {
