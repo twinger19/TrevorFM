@@ -1,23 +1,39 @@
-# Frediohead FM — Program Director console
+# Frediohead FM — web
 
-The web console for Frediohead FM. It does ONE job now: edit the station's
-weekly programming grid (shows, hours, briefs, hosts) and keep it in sync
-with the iOS app through the Cloudflare Worker in `cloudflare-sync/`.
+The station in a browser: Apple Music playback, an AI DJ that programs real
+shows, three hosts with their own voices, a weekly schedule, one-tap moods,
+and requests. Shares its programming with the iOS app through a Cloudflare
+Worker.
 
-Playback, the AI DJ, voices, and everything on-air live in the iOS app,
-which plays through Apple Music. This page is the desk with the big
-keyboard where the week gets programmed.
+## What runs where
+
+- **This page** — playback (MusicKit JS), the booth, the drawers.
+- **Your Cloudflare Worker** (`cloudflare-sync/`) — the sync blob, the
+  MusicKit developer token, and the ElevenLabs voice proxy. Credentials live
+  there, never in this repo or the browser.
+
+## Setup
+
+1. Deploy the Worker in `cloudflare-sync/` (its README has the steps) and set
+   its variables: `MUSICKIT_TEAM_ID`, `MUSICKIT_KEY_ID`, `MUSICKIT_PRIVATE_KEY`
+   (the `.p8` contents), and `ELEVENLABS_KEY`.
+2. Open the site, hit the gear, and paste the **Worker URL + secret** and a
+   **Gemini API key** (aistudio.google.com).
+3. **Sign in to Apple Music**. An active subscription is required to play.
+
+Then press power. The DJ reads your listening history, programs a block, and
+goes on air.
 
 ## Run locally
 
 ```
-node server.js
+node server.js     # http://127.0.0.1:8888
 ```
 
-Then open http://127.0.0.1:8888. Or host the folder as any static site.
+## The hosts
 
-## Setup
+- **Fred** — the flat synthetic console voice, on-device speech synthesis.
+- **Lotus** — quiet and philosophical, late nights (ElevenLabs).
+- **Marlowe** — warm and human, mornings and drivetime (ElevenLabs).
 
-Open Settings (gear icon) and paste the same Sync URL + secret the iOS app
-uses (iOS: Settings ▸ Schedule Sync). Edits push on save; the console also
-pulls once a minute, so changes made on the phone appear here on their own.
+Voices, personalities, and the schedule all sync with the iOS app.
