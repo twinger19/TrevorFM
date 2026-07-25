@@ -82,22 +82,32 @@ function timeSlot() {
 async function callGemini(promptText, schema, thinkingBudget = 0, model = MODEL_PICKS) {
   const key = settings.geminiKey;
   if (!key) throw new Error("No Gemini API key set. Open Settings.");
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-    {
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  const body = {
+    contents: [{ role: "user", parts: [{ text: promptText }] }],
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: schema,
+      thinkingConfig: { thinkingBudget },
+    },
+  };
+
+  const send = (payload) =>
+    fetch(endpoint, {
       method: "POST",
       // Key in a header, not the URL — query strings end up in logs.
       headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: promptText }] }],
-        generationConfig: {
-          responseMimeType: "application/json",
-          responseSchema: schema,
-          thinkingConfig: { thinkingBudget },
-        },
-      }),
-    }
-  );
+      body: JSON.stringify(payload),
+    });
+
+  let res = await send(body);
+  // The "-latest" model alias drifts onto newer models that sometimes reject
+  // thinkingConfig; if that tripped a 400, drop it and retry once (same fix
+  // as the iOS app already carries).
+  if (res.status === 400 && body.generationConfig.thinkingConfig) {
+    delete body.generationConfig.thinkingConfig;
+    res = await send(body);
+  }
   if (res.status === 429) throw new Error("Gemini free-tier limit hit. The station will retry shortly.");
   if (!res.ok) throw new Error(`Gemini error ${res.status}: ${await res.text()}`);
   const json = await res.json();
