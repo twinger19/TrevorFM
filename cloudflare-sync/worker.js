@@ -101,16 +101,29 @@ export default {
         }
       );
       if (!upstream.ok) {
-        // Name the failure mode, and say which key actually failed — the
-        // stored one and a pasted one need different fixes.
-        const whose = clientKey ? "The key in Settings" : "The Worker's stored ELEVENLABS_KEY";
+        const whose = clientKey ? "the key in Settings" : "the Worker's stored ELEVENLABS_KEY";
         const body = await upstream.text();
+
+        // ElevenLabs overloads 401: a bad key, an exhausted credit balance and
+        // a flagged account all arrive with the same status and are told apart
+        // only by `detail.status` in the body. Reading that matters — a blanket
+        // "your key was rejected" sends you rotating keys for hours when the
+        // real answer is "you're out of credits until the monthly reset".
+        let reason = "";
+        try { reason = JSON.parse(body)?.detail?.status || ""; } catch {}
+
         const error =
-          upstream.status === 401
-            ? `${whose} was rejected by ElevenLabs (401). If you rotated it, paste the current key in Settings.`
-            : upstream.status === 402
-              ? `ElevenLabs won't serve this voice on the current plan (402) — Voice Library voices need a paid plan.`
-              : `ElevenLabs ${upstream.status}: ${body}`;
+          reason === "quota_exceeded"
+            ? "Out of ElevenLabs credits — the voices come back when the quota resets, or on a higher plan. Nothing is wrong with your key."
+          : reason === "detected_unusual_activity"
+            ? "ElevenLabs has flagged this account for unusual activity and blocked text-to-speech. Contact their support; rotating the key won't clear it."
+          : upstream.status === 401
+            ? `ElevenLabs rejected ${whose} (401${reason ? `: ${reason}` : ""}). If you rotated it, paste the current one in Settings.`
+          : upstream.status === 402
+            ? "ElevenLabs won't serve this voice on the current plan (402) — Voice Library voices need a paid plan."
+          // Anything unrecognised passes ElevenLabs' own words through rather
+          // than being replaced by a guess.
+          : `ElevenLabs ${upstream.status}: ${body.slice(0, 300)}`;
         return json({ error }, upstream.status);
       }
       return new Response(upstream.body, {
