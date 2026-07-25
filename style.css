@@ -10,6 +10,8 @@
   --soft-border: rgba(0, 0, 0, 0.08);
   --hairline: var(--ink);
   --overlay: rgba(0, 0, 0, 0.05);
+  --surface: var(--bg);
+  --radius: 0px;
   --serif: "Fraunces", Georgia, serif;
   --sans: "Plus Jakarta Sans", -apple-system, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, monospace;
@@ -146,14 +148,15 @@ main {
 .title {
   font-family: var(--serif);
   font-weight: 800;
-  font-size: clamp(34px, 5.2vw, 58px);
-  line-height: 1.08;
+  font-size: clamp(30px, 4.2vw, 48px);
+  line-height: 1.15;
   text-transform: lowercase;
   letter-spacing: -0.01em;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  margin-bottom: 4px;
 }
 .show-now {
   margin-left: 18px;
@@ -170,7 +173,7 @@ main {
 }
 @keyframes cursor { 50% { opacity: 0; } }
 .title.idle { color: var(--muted); }
-.artist { color: var(--muted); margin-top: 10px; font-size: 15px; }
+.artist { color: var(--muted); margin-top: 18px; font-size: 15px; }
 
 /* Right rail */
 .rail { display: flex; flex-direction: column; gap: 26px; justify-self: end; }
@@ -503,6 +506,11 @@ button { font: inherit; }
 }
 .text-btn:hover { color: var(--ink); }
 .text-btn:disabled { opacity: 0.4; cursor: default; text-decoration: none; }
+.text-btn.danger { color: var(--accent); }
+.text-btn.danger:hover { filter: brightness(0.85); }
+
+/* Flex spacer — pushes whatever follows it to the far end of the row. */
+.grow { flex: 1; }
 
 select {
   font: inherit;
@@ -551,23 +559,24 @@ input::placeholder { color: var(--muted); }
 .drawer-body { flex: 1; overflow-y: auto; padding: 18px 24px; }
 .drawer-body ul { list-style: none; }
 
-#upNextList li, #timelineList li {
+#timelineList li {
   padding: 12px 0;
   border-bottom: 1px solid var(--soft-border);
-  font-weight: 600;
 }
-#upNextList li span, #timelineList li span {
+.tl-name { font-weight: 600; }
+.tl-sub {
   display: block;
   color: var(--muted);
   font-weight: 400;
   font-size: 13px;
   margin-top: 3px;
 }
-#timelineList li time {
-  float: right;
-  font-family: var(--mono);
-  font-size: 11px;
+/* A drawer with nothing to show yet — Timeline and Booth both use this. */
+.empty {
+  padding: 20px 0 !important;
+  border-bottom: none !important;
   color: var(--muted);
+  font-size: 13px;
 }
 /* Booth feed */
 .booth-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
@@ -587,26 +596,27 @@ input::placeholder { color: var(--muted); }
   padding: 11px 0;
   border-bottom: 1px solid var(--soft-border);
 }
-#log .bf-head {
-  font-family: var(--mono);
+#log .log-time {
   font-size: 10.5px;
+  color: var(--muted);
+  margin-right: 10px;
+}
+#log .log-kind {
+  font-size: 10.5px;
+  font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--ink);
 }
-#log .bf-head b { color: var(--ink); font-weight: 700; }
-#log li.dj .bf-head b { color: var(--accent); }
-#log li.warn .bf-head b { color: var(--accent); }
-#log .bf-title { font-size: 14px; font-weight: 600; margin-top: 3px; line-height: 1.45; }
-#log li.dj .bf-title { font-weight: 400; font-family: var(--mono); font-size: 12.5px; color: var(--ink); }
-#log li.warn .bf-title { color: var(--accent); font-family: var(--mono); font-size: 12px; font-weight: 400; }
-#log .bf-sub {
-  font-family: var(--mono);
+#log .log-kind.is-dj { color: var(--accent); }
+#log .log-title { display: block; font-size: 14px; font-weight: 600; margin-top: 4px; line-height: 1.45; }
+#log .log-sub {
+  display: block;
   font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted);
-  margin-top: 3px;
+  margin-top: 4px;
 }
 
 #requestForm { display: flex; flex-direction: column; gap: 14px; }
@@ -659,18 +669,15 @@ input::placeholder { color: var(--muted); }
 }
 
 /* Timeline sections */
-#timelineList .tl-section {
+.tl-head {
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--muted);
-  padding: 16px 0 6px;
-  border-bottom: none;
+  padding: 16px 0 6px !important;
+  border-bottom: none !important;
 }
-#timelineList li.tl-now { color: var(--accent); }
-#timelineList li.tl-now span { color: var(--accent); opacity: 0.75; }
-.tl-heart { color: var(--accent); margin-left: 7px; font-size: 12px; }
 
 /* Request status */
 .request-status { font-size: 12.5px; color: var(--ink); line-height: 1.6; }
@@ -698,41 +705,80 @@ input::placeholder { color: var(--muted); }
   color: var(--ink);
   background: var(--overlay);
 }
-.sched-block {
-  padding: 12px 10px;
+.sched-actions { display: flex; gap: 14px; align-items: center; margin: 4px 0 10px; flex-wrap: wrap; }
+
+/* One scheduled show, collapsed — tap to edit. */
+.block-row {
+  padding: 14px 2px;
   border-bottom: 1px solid var(--soft-border);
   cursor: pointer;
 }
-.sched-block:hover { background: var(--overlay); }
-.sched-block.now { border-left: 3px solid var(--accent); padding-left: 10px; background: var(--accent-soft); }
-.sched-time {
+.block-row:hover { background: var(--overlay); }
+.block-row .rowtop {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
   font-family: var(--mono);
   font-size: 11px;
   color: var(--muted);
 }
-.sched-block.now .sched-time::after { content: "  ● on now"; color: var(--accent); font-weight: 700; }
-.sched-name { font-weight: 700; margin: 3px 0 2px; }
-.sched-desc { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
-.sched-form { padding: 12px 10px; border-bottom: 1px solid var(--soft-border); display: flex; flex-direction: column; gap: 8px; }
-.sched-form .times { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); }
-.sched-form .times input { width: 64px; }
-.sched-form textarea {
+.block-row .onnow {
+  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  font-size: 10.5px;
+}
+.block-row h4 {
+  font-family: var(--serif);
+  font-size: 17px;
+  font-weight: 800;
+  margin: 4px 0 3px;
+}
+.block-row p { font-size: 13px; color: var(--muted); line-height: 1.5; }
+
+/* Show/mood editor form — shared by the Schedule and Moods drawers. */
+.block-editor {
+  padding: 16px 14px;
+  margin: 10px 0;
+  border: 1px solid var(--accent);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.block-editor label {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.block-editor label input,
+.block-editor label select,
+.block-editor label textarea {
+  display: block;
+  width: 100%;
+  margin-top: 7px;
+  max-width: none;
+}
+.block-editor textarea {
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
+  line-height: 1.5;
   background: var(--bg);
   border: 1px solid var(--ink);
   color: var(--ink);
-  padding: 8px 10px;
-  min-height: 64px;
+  padding: 12px;
+  min-height: 140px;
   resize: vertical;
 }
-.sched-form .row { display: flex; gap: 12px; justify-content: flex-end; align-items: center; }
-.sched-actions { display: flex; gap: 14px; align-items: center; margin: 4px 0 10px; flex-wrap: wrap; }
-.sched-note { font-size: 11.5px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
+.editor-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.editor-actions { display: flex; gap: 14px; align-items: center; }
 
 /* Instant mood blocks */
+.drawer-hint { font-size: 12px; color: var(--muted); line-height: 1.5; margin-bottom: 14px; }
 .mood-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
-.mood-tile {
+.mood-card {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -743,13 +789,35 @@ input::placeholder { color: var(--muted); }
   background: var(--surface);
   color: var(--ink);
   cursor: pointer;
-  border-radius: var(--radius);
 }
-.mood-tile:hover { border-color: var(--ink); }
-.mood-tile.on { border-color: var(--accent); background: var(--accent-soft); }
+.mood-card:hover { border-color: var(--ink); }
+.mood-card.is-active { border-color: var(--accent); background: var(--accent-soft); }
+.mood-card.mood-new { border-style: dashed; border-color: var(--muted); }
+.mood-card.mood-new:hover { border-color: var(--accent); color: var(--accent); }
+.mood-top { display: flex; align-items: center; justify-content: space-between; width: 100%; }
 .mood-icon { font-size: 20px; line-height: 1; color: var(--accent); }
-.mood-name { font-weight: 700; font-size: 15px; }
-.mood-desc { font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+.mood-edit {
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px;
+}
+.mood-edit:hover { color: var(--ink); }
+.mood-card h4 { font-weight: 700; font-size: 15px; }
+.mood-card p { font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+
+/* Mood/show editor icon tray */
+.icon-tray { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-top: 8px; }
+.icon-choice {
+  font-size: 17px;
+  background: none;
+  border: 1px solid var(--soft-border);
+  color: var(--ink);
+  padding: 10px 0;
+  cursor: pointer;
+}
+.icon-choice:hover { border-color: var(--ink); }
+.icon-choice.is-on { background: var(--accent); border-color: var(--accent); color: #fff; }
 .mood-active {
   display: flex;
   align-items: center;

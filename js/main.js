@@ -93,13 +93,17 @@ function idleDisplay() {
   $("art").hidden = true;
   $("djLine").hidden = true;
   lyricsLines = null;
+  lyricsIndex = -1;
   $("lyricsBox").hidden = true;
+  $("lyricsScroll").innerHTML = "";
 }
 
 async function loadLyrics(item) {
   lyricsLines = null;
   lyricsIndex = -1;
   $("lyricsBox").hidden = true;
+  $("lyricsScroll").innerHTML = "";
+  $("lyricsScroll").style.transform = "translateY(0)";
   const lines = await fetchSyncedLyrics({
     artist: item.artist,
     track: item.name,
@@ -108,10 +112,18 @@ async function loadLyrics(item) {
   });
   if (lines?.length && music.nowPlaying()?.uri === item.uri) {
     lyricsLines = lines;
+    // The whole song renders once, up front — paintLyrics only ever
+    // toggles which <p> is "current" and slides the column to it. That's
+    // what lets the CSS mask do a real fade at the top and bottom edges,
+    // rather than swapping three lines in and out.
+    $("lyricsScroll").innerHTML = lines.map((l) => `<p>${escapeHTML(l.text || "…")}</p>`).join("");
     $("lyricsBox").hidden = false;
   }
 }
 
+// Scrolls the synced lyrics so the active line sits centered in the box —
+// bold, full opacity — while the mask on .lyrics fades everything above
+// and below it.
 function paintLyrics(ms) {
   if (!lyricsLines) return;
   let idx = -1;
@@ -119,10 +131,20 @@ function paintLyrics(ms) {
   if (idx === lyricsIndex) return;
   lyricsIndex = idx;
   waveform?.pulse();
-  const at = (o) => lyricsLines[idx + o]?.text || "";
-  $("lyricsScroll").innerHTML = [-1, 0, 1]
-    .map((o) => `<div class="lyric ${o === 0 ? "is-current" : ""}">${escapeHTML(at(o) || " ")}</div>`)
-    .join("");
+
+  const scroll = $("lyricsScroll");
+  for (const row of scroll.children) row.classList.remove("current");
+  if (idx < 0) {
+    scroll.style.transform = "translateY(0)";
+    return;
+  }
+  const row = scroll.children[idx];
+  if (!row) return;
+  row.classList.add("current");
+  const boxHeight = $("lyricsBox").clientHeight;
+  const rowCenter = row.offsetTop + row.offsetHeight / 2;
+  const offset = Math.max(0, rowCenter - boxHeight / 2);
+  scroll.style.transform = `translateY(${-offset}px)`;
 }
 
 function setAirVisuals(playing, mode) {

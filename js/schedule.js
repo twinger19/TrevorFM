@@ -49,14 +49,27 @@ export function loadSchedule() {
     const saved = JSON.parse(localStorage.getItem(KEY));
     if (saved && DAYS.every((d) => Array.isArray(saved[d]))) {
       // Older saved schedules predate the dj field.
+      let missingIds = false;
       for (const d of DAYS) for (const b of saved[d]) {
         if (b.dj === "ellen") b.dj = "lotus"; // pre-rename saves
         if (!DJS.includes(b.dj)) b.dj = "fred";
+        // Default (never-edited) blocks predate ids too. Without a
+        // persisted id, the editor's "which block did they click" bookkeeping
+        // has nothing stable to key off — backfill and save so every block
+        // is editable, not just ones created via "+ add show".
+        if (!b.id) { b.id = crypto.randomUUID(); missingIds = true; }
+      }
+      if (missingIds) {
+        localStorage.setItem(KEY, JSON.stringify(saved));
       }
       return saved;
     }
   } catch {}
-  return defaults();
+  const week = defaults();
+  for (const d of DAYS) for (const b of week[d]) b.id = crypto.randomUUID();
+  localStorage.setItem(KEY, JSON.stringify(week));
+  localStorage.setItem(UPDATED_KEY, String(Date.now()));
+  return week;
 }
 
 const UPDATED_KEY = "tfm_schedule_updated";
