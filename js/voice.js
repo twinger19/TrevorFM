@@ -36,6 +36,33 @@ function pickVoice(match) {
   );
 }
 
+// The stand-in voice for a network-voiced host. Matched by NAME, taking the
+// highest quality installed: browsers list "Zoe (Premium)" and "Zoe" as
+// separate voices, and which ones exist depends on what's been downloaded on
+// this machine — so it can only be resolved here, at runtime.
+//
+// Returns null when nothing matches, which speakSystem turns into the
+// browser's own default rather than leaving the host silent.
+export function pickCoverVoice(djId) {
+  const host = findDJ(djId);
+  const wanted = settings.coverVoice(djId) || host.voice.coverVoice;
+  if (!wanted) return null;
+  const matches = availableVoices().filter((v) =>
+    v.name.toLowerCase().includes(wanted.toLowerCase())
+  );
+  if (!matches.length) return null;
+  const rank = (n) => (/premium/i.test(n) ? 3 : /enhanced/i.test(n) ? 2 : 1);
+  return matches.reduce((best, v) => (rank(v.name) > rank(best.name) ? v : best));
+}
+
+// Every installed English voice, best quality first — for the Settings picker.
+export function installedVoices() {
+  const rank = (n) => (/premium/i.test(n) ? 3 : /enhanced/i.test(n) ? 2 : 1);
+  return availableVoices()
+    .slice()
+    .sort((a, b) => rank(b.name) - rank(a.name) || a.name.localeCompare(b.name));
+}
+
 export function estimateSpeechSeconds(text) {
   return text.split(/\s+/).length * 0.42 + 0.8;
 }
@@ -43,9 +70,13 @@ export function estimateSpeechSeconds(text) {
 // --- browser speech ---
 
 function speakSystem(text, match, onNearEnd) {
+  return speakWithVoice(text, pickVoice(match), onNearEnd);
+}
+
+// Speak through a specific SpeechSynthesisVoice (null = the browser default).
+function speakWithVoice(text, voice, onNearEnd) {
   return new Promise((resolve) => {
     const u = new SpeechSynthesisUtterance(text);
-    const voice = pickVoice(match);
     if (voice) u.voice = voice;
     u.rate = 1.0;
     u.pitch = 1.0;
@@ -129,12 +160,17 @@ async function prepareSpeaker(djId, text) {
       const url = await fetchVoiceAudio(text, host.voice.voiceId);
       return { play: (onNearEnd) => playAudioUrl(url, onNearEnd) };
     } catch (e) {
-      // Repeat the same complaint once, but never swallow a NEW one — a
-      // changed message means the problem changed and the listener needs it.
+      // The host keeps their own stand-in voice rather than being replaced by
+      // Fred: an ElevenLabs outage can last weeks (a spent monthly quota), and
+      // handing the whole station to the novelty robot for that long makes it
+      // sound broken instead of merely degraded.
+      const cover = pickCoverVoice(djId);
       if (warnedProxy !== e.message) {
         warnedProxy = e.message;
-        voiceLogger(`${host.name}'s voice is unavailable — ${e.message} Fred is covering.`);
+        const who = cover ? cover.name : "the browser's default voice";
+        voiceLogger(`${host.name}'s voice is unavailable — ${e.message} Covering with ${who}.`);
       }
+      return { play: (onNearEnd) => speakWithVoice(text, cover, onNearEnd) };
     }
   }
   return { play: (onNearEnd) => speakSystem(text, host.voice.match, onNearEnd) };

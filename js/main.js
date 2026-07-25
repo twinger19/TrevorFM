@@ -2,7 +2,7 @@
 import { settings } from "./config.js";
 import { music } from "./musickit.js";
 import { Station } from "./station.js";
-import { setVoiceLogger, availableVoices } from "./voice.js";
+import { setVoiceLogger, availableVoices, installedVoices } from "./voice.js";
 import { createWaveform } from "./waveform.js";
 import { createBuddy } from "./buddy.js";
 import { fetchSyncedLyrics } from "./lyrics.js";
@@ -634,7 +634,41 @@ function fillSettingsForm() {
   $("setVoice").innerHTML = `<option value="">Automatic</option>` +
     voices.map((v) => `<option value="${escapeAttr(v.name)}">${escapeHTML(v.name)}</option>`).join("");
   $("setVoice").value = settings.voiceName;
+  renderCoverVoices();
   $("wxAttribution").textContent = "Weather by Open-Meteo.";
+}
+
+// A cover-voice picker per network-voiced host. Stores the bare name — not the
+// full "Zoe (Premium)" label — so a better-quality copy installed later is
+// picked up automatically without re-choosing.
+function renderCoverVoices() {
+  const box = $("coverVoices");
+  if (!box) return;
+  const hosts = DJS.filter((d) => d.voice.kind === "eleven");
+  const installed = installedVoices();
+  const bare = (n) => n.replace(/\s*\(.*\)\s*$/, "").trim();
+
+  box.innerHTML = hosts.map((d) => {
+    const chosen = settings.coverVoice(d.id) || d.voice.coverVoice || "";
+    const names = [...new Set(installed.map((v) => bare(v.name)))];
+    const missing = chosen && !names.some((n) => n.toLowerCase() === chosen.toLowerCase());
+    return `
+      <label>${escapeHTML(d.name)}'s cover voice
+        <select data-cover="${d.id}">
+          <option value="">Browser default</option>
+          ${names.map((n) => `<option value="${escapeAttr(n)}" ${n.toLowerCase() === chosen.toLowerCase() ? "selected" : ""}>${escapeHTML(n)}</option>`).join("")}
+          ${missing ? `<option value="${escapeAttr(chosen)}" selected>${escapeHTML(chosen)} — not installed here</option>` : ""}
+        </select>
+      </label>
+      ${missing ? `<p class="fine warn">“${escapeHTML(chosen)}” isn't installed in this browser — ${escapeHTML(d.name)} will use the default until it is.</p>` : ""}`;
+  }).join("");
+
+  box.querySelectorAll("[data-cover]").forEach((sel) =>
+    sel.addEventListener("change", () => {
+      settings.setCoverVoice(sel.dataset.cover, sel.value);
+      renderCoverVoices();
+    })
+  );
 }
 
 $("settingsBtn").addEventListener("click", () => { fillSettingsForm(); $("settingsDialog").showModal(); });

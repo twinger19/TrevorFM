@@ -165,6 +165,8 @@
     <label>Fred's voice <select id="setVoice"></select></label>
     <label>ElevenLabs key <input id="setElevenKey" type="password" placeholder="leave blank to use the Worker's key" autocomplete="off" /></label>
     <p class="fine">Lotus and Marlowe speak through ElevenLabs. Normally the Worker's own key is used — paste one here only to override it, e.g. after rotating the key.</p>
+    <div id="coverVoices"></div>
+    <p class="fine">Cover voices stand in when ElevenLabs is unreachable — out of credits, or offline. Only voices installed in this browser are listed, and they're remembered per browser rather than synced, since each machine has different ones.</p>
     <label>Duck volume while DJ talks <input type="range" id="setDuck" min="0" max="60" step="5" /></label>
     <hr class="settings-sep" />
     <label>Schedule sync URL <input id="setSyncUrl" placeholder="your Cloudflare Worker URL" autocomplete="off" /></label>

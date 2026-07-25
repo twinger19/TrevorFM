@@ -46,4 +46,15 @@ export const settings = {
   set syncUrl(v) { localStorage.setItem(KEYS.syncUrl, v.trim()); },
   get syncSecret() { return localStorage.getItem(KEYS.syncSecret) || ""; },
   set syncSecret(v) { localStorage.setItem(KEYS.syncSecret, v.trim()); },
+
+  // Which on-device voice covers a host when ElevenLabs is unreachable.
+  // Deliberately NOT synced, unlike the schedule and moods: installed voices
+  // differ per machine, so a name that works here can silently resolve to
+  // nothing on another device — a setting that looks applied but isn't.
+  coverVoice(djId) { return localStorage.getItem(`tfm_cover_${djId}`) || ""; },
+  setCoverVoice(djId, name) {
+    const v = (name || "").trim();
+    if (v) localStorage.setItem(`tfm_cover_${djId}`, v);
+    else localStorage.removeItem(`tfm_cover_${djId}`);
+  },
 };

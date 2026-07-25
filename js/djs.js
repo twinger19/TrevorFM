@@ -42,7 +42,10 @@ export const DJS = [
     id: "lotus",
     name: "Lotus",
     // ElevenLabs "Bella" — matches the iOS registry.
-    voice: { kind: "eleven", voiceId: "hpp4J3VqNfWAUOO0d1Us" },
+    // coverVoice: the on-device browser voice that stands in when ElevenLabs
+    // can't be reached — out of credits, offline, API down. Matched by name so
+    // the best installed quality wins; see pickCoverVoice in voice.js.
+    voice: { kind: "eleven", voiceId: "hpp4J3VqNfWAUOO0d1Us", coverVoice: "Zoe" },
     spec: [
       "VOICE — you are Lotus. A quiet, philosophical late-night presence.",
       "- TONE: low, steady, unhurried. Quiet confidence that makes the listener lean in.",
@@ -70,7 +73,10 @@ export const DJS = [
     id: "marlowe",
     name: "Marlowe",
     // ElevenLabs "Daniel" — a strong, solid broadcast voice.
-    voice: { kind: "eleven", voiceId: "onwK4e9ZLuTAKqWW03F9" },
+    // Apple/most systems also ship an en-GB male "Daniel" — the same name and
+    // accent as Marlowe's ElevenLabs voice, and the closest match if Jamie
+    // reads wrong. Overridable per browser in Settings.
+    voice: { kind: "eleven", voiceId: "onwK4e9ZLuTAKqWW03F9", coverVoice: "Jamie" },
     spec: [
       "VOICE — you are Marlowe: the station's human heart, the warm daytime voice between",
       "Fred's cold console and Lotus's midnight hush. A real FM presence who talks TO the",
