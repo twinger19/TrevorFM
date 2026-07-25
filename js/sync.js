@@ -28,10 +28,24 @@ export async function pullSchedule() {
   }
 }
 
+// The blob carries more than the schedule now — the iOS app also stores its
+// custom moods, thumbs-down vetoes, and DJ override in it. This console only
+// owns `week`/`updatedAt`, so it must READ FIRST and hand everything else
+// back untouched. Blindly PUTting a schedule-only blob would delete the
+// phone's moods and un-ban every rejected track.
 export async function pushSchedule() {
   if (!configured()) return false;
   try {
-    const blob = { week: loadSchedule(), updatedAt: scheduleUpdatedAt() };
+    let existing = {};
+    try {
+      const current = await fetch(settings.syncUrl, {
+        headers: { "x-sync-secret": settings.syncSecret },
+      });
+      if (current.ok) existing = (await current.json()) || {};
+    } catch {
+      /* first write, or offline — fall through with an empty base */
+    }
+    const blob = { ...existing, week: loadSchedule(), updatedAt: scheduleUpdatedAt() };
     const res = await fetch(settings.syncUrl, {
       method: "PUT",
       headers: { "x-sync-secret": settings.syncSecret, "content-type": "application/json" },
