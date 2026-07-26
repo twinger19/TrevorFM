@@ -14,9 +14,21 @@ const POLL_MS = 1000;      // local state, no network — cheap to poll often
 const TOPUP_WHEN_REMAINING = 4;
 const BLOCK_SIZE = 12;
 
-// Persistent 24h play history so nothing repeats within a day.
 const HISTORY_KEY = "tfm_history";
-const DAY_MS = 24 * 60 * 60 * 1000;
+// How long the station remembers, and why it isn't a day any more.
+//
+// A 24h window is nothing for a station that plays for hours: a track heard
+// on Tuesday morning was fair game again by Wednesday, which is what made the
+// rotation feel repetitive. A track and an artist wear out at different rates,
+// so they get separate windows — a different song by the same act isn't a
+// repeat, but three in an afternoon stops feeling like radio.
+//
+// Kept in step with PlayHistory.swift on iOS; both feed the same prompt rules.
+const TRACK_WINDOW_DAYS = 14;
+const ARTIST_WINDOW_HOURS = 4;
+const DAY_MS = TRACK_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+const ARTIST_MS = ARTIST_WINDOW_HOURS * 60 * 60 * 1000;
+const MAX_HISTORY = 4000;
 
 function loadHistory() {
   try {
@@ -26,14 +38,33 @@ function loadHistory() {
     return [];
   }
 }
-function recordHistory(uri, label) {
+function recordHistory(uri, label, artist) {
   const arr = loadHistory();
   if (arr.length && arr[arr.length - 1].uri === uri) return;
-  arr.push({ uri, label, at: Date.now() });
+  arr.push({ uri, label, artist, at: Date.now() });
+  // Bounded so localStorage can't grow without limit over a fortnight of
+  // continuous play.
+  if (arr.length > MAX_HISTORY) arr.splice(0, arr.length - MAX_HISTORY);
   localStorage.setItem(HISTORY_KEY, JSON.stringify(arr));
 }
 const recentUris = () => new Set(loadHistory().map((h) => h.uri));
-const recentLabels = (cap = 60) => loadHistory().slice(-cap).map((h) => h.label);
+
+// Artists heard in the last few hours, lowercased for comparison. Entries
+// saved before `artist` existed simply have none, which is why this filters
+// rather than assuming the field is there.
+const recentArtists = () => {
+  const cutoff = Date.now() - ARTIST_MS;
+  return new Set(
+    loadHistory()
+      .filter((h) => h.at > cutoff && h.artist)
+      .map((h) => h.artist.toLowerCase())
+  );
+};
+
+// Capped: a fortnight can run to thousands of titles, and pasting all of them
+// into every prompt would cost more than it saves. Anything older that slips
+// through is still caught locally by recentUris().
+const recentLabels = (cap = 150) => loadHistory().slice(-cap).map((h) => h.label);
 
 export class Station {
   constructor(events) {
@@ -63,7 +94,10 @@ export class Station {
   }
 
   async resolvePicks(picks, { skipRecent = false } = {}) {
+    // A listener request is exempt from both windows: they asked for that
+    // song, and "you heard this last week" is no reason to refuse them.
     const recent = skipRecent ? recentUris() : null;
+    const artists = skipRecent ? recentArtists() : null;
     // A few at a time: fast enough for a 12-track block, gentle on the API.
     const out = new Array(picks.length).fill(null);
     let cursor = 0;
@@ -88,9 +122,18 @@ export class Station {
         return;
       }
       if (recent && recent.has(track.uri)) {
-        this.log(`Skipped "${trackLabel(track)}" — played in the last 24h.`, "dj");
+        this.log(`Skipped "${trackLabel(track)}" — played in the last ${TRACK_WINDOW_DAYS} days.`, "dj");
         return;
       }
+      // Artist spacing. Counts artists chosen EARLIER IN THIS BLOCK too, or a
+      // block could open with three tracks by the same act and none of them
+      // would look recent yet.
+      const artistKey = (track.artist || "").toLowerCase();
+      if (artists && artistKey && artists.has(artistKey)) {
+        this.log(`Skipped "${trackLabel(track)}" — that artist was on in the last ${ARTIST_WINDOW_HOURS} hours.`, "dj");
+        return;
+      }
+      if (artists && artistKey) artists.add(artistKey);
       if (pick.intro?.trim()) this.introByUri.set(track.uri, pick.intro.trim());
       resolved.push(track);
     });
@@ -223,7 +266,7 @@ export class Station {
         const label = trackLabel(item);
         this.playedTitles.push(label);
         if (this.playedTitles.length > 100) this.playedTitles.splice(0, this.playedTitles.length - 100);
-        recordHistory(item.uri, label);
+        recordHistory(item.uri, label, item.artist);
         recordPlay(item.artist, null);
         this.upNext = this.upNext.filter((t) => t.uri !== item.uri);
         this.events.onNowPlaying(item);

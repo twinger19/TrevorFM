@@ -157,7 +157,16 @@ export async function askDJ({ tasteProfile, playedSoFar, listenerRequest = null,
     "Listener taste profile (from their listening history) — this is a STARTING POINT, not a playlist to echo:",
     JSON.stringify(tasteProfile),
     "",
-    "Recently played (never repeat any of these; also avoid more than one track per artist per hour):",
+    // Stated as hard rules with the real numbers, because the station enforces
+    // exactly these locally: a pick breaking either one is dropped from the
+    // block, which shrinks it and wastes the call. Better for the DJ to route
+    // around them than to be silently corrected afterwards.
+    `ALREADY PLAYED — the last ${playedSoFar.length} tracks this station aired.`,
+    "Two hard rules, both enforced after you answer:",
+    "  1. NEVER pick any track listed below. A track is off the air for 14 days after it plays.",
+    "  2. NEVER pick an artist listed below. An artist is off the air for 4 hours after they play,",
+    "     so a different song by one of these artists still counts as a repeat right now.",
+    "Anything breaking those is discarded and the block comes up short, so route around them:",
     JSON.stringify(playedSoFar),
     "",
     ...(bans.length
