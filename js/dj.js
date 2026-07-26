@@ -125,9 +125,26 @@ export async function askDJ({ tasteProfile, playedSoFar, listenerRequest = null,
   // temperature delivered in a confident voice is still a lie.
   const weatherLine = weather
     ? `- Weather and light right now, verified: ${weather}\n` +
-      "  (The fall of light is often better on-air colour than the temperature. Use at most one\n" +
-      "  of these per drop, and only when it earns its place.)"
+      "  (The fall of light is often better on-air colour than the temperature.\n" +
+      "  At most one of these per drop.)"
     : "- Weather: UNKNOWN. Never mention weather, temperature, sky conditions, or the sun.";
+
+  // A REQUIREMENT, not a permission.
+  //
+  // Every other mention of the clock and sky is a ceiling ("at most one",
+  // "only when it earns its place"), and each host's spec hedges the same way.
+  // Given only ceilings the model resolves them downward and stops mentioning
+  // either — which is how time and weather quietly disappeared from the air.
+  // Naming a floor, and a rate, is what brings them back; the hosts' own specs
+  // still decide how it's phrased in their voice.
+  const cadenceLine = weather
+    ? "- ON-AIR CLOCK AND SKY: at least ONE spoken drop in this block must place the listener in " +
+      "the moment — the time, or the verified weather and light above. This is what separates live " +
+      "radio from a playlist, so treat it as part of the job, not a flourish. Not every drop; " +
+      "roughly one in three."
+    : "- ON-AIR CLOCK: at least ONE spoken drop in this block must place the listener in the day — " +
+      "the hour, the part of the afternoon, how late it's getting. Not every drop; roughly one in " +
+      "three. Weather is UNKNOWN right now, so leave it out entirely.";
   const bans = bannedTracks();
   const banArtists = bannedArtists();
   const text = [
@@ -194,6 +211,10 @@ export async function askDJ({ tasteProfile, playedSoFar, listenerRequest = null,
     `- Time: ${clock}`,
     weatherLine,
     "- Current and upcoming audio: the picks in this block, in order.",
+    // A one-track request block gets a single intro that belongs to the
+    // request — forcing a time check into it would crowd out the thing the
+    // listener actually asked for.
+    ...(requestOnly ? [] : [cadenceLine]),
     "",
     ...host.example,
   ].join("\n");
