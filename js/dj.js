@@ -200,8 +200,18 @@ export async function askDJ({ tasteProfile, playedSoFar, listenerRequest = null,
     ...(requestOnly
       ? ["This is a request, so it ALWAYS gets a spoken intro."]
       : [
-          "TALK CADENCE: give a spoken intro to 1 or 2 of the picks — never zero, so the DJ is",
-          "present every block. Leave the other picks with an empty intro so songs run back-to-back.",
+          // Roughly one in three, and SPREAD. This was "1 or 2 of the picks"
+          // against a 12-track block — a voice every six to twelve songs, and
+          // worse when skipping, because the talk-up only fires as a song ENDS
+          // and a skip jumps straight past it. Stated as a count rather than
+          // "a few", and told to spread, or they cluster at the front and the
+          // tail of the block is silent anyway.
+          `TALK CADENCE: give a spoken intro to about one pick in three — for this block of ${count}`,
+          `that means roughly ${Math.max(1, Math.floor(count / 3))} of them. Never zero.`,
+          "SPREAD THEM OUT across the running order rather than clustering at the start, and never",
+          "two in a row. The listener should hear a voice every couple of songs, not a burst up",
+          "front followed by a long silence. Leave the remaining picks with an empty intro so those",
+          "songs run back-to-back.",
         ]),
     ...(announceShow
       ? ["",
