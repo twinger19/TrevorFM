@@ -269,7 +269,14 @@ async function currentWeatherLine() {
     return null;
   }
   try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${at.lat.toFixed(2)}&longitude=${at.lon.toFixed(2)}&current=temperature_2m,weather_code&daily=sunrise,sunset&temperature_unit=fahrenheit&timezone=auto`;
+    // Ask for the forecast too, not just the current reading — a weather
+    // update that can't say what's coming is decoration, not information.
+    const url =
+      `https://api.open-meteo.com/v1/forecast?latitude=${at.lat.toFixed(2)}&longitude=${at.lon.toFixed(2)}` +
+      "&current=temperature_2m,weather_code,precipitation" +
+      "&hourly=temperature_2m,weather_code,precipitation_probability" +
+      "&daily=sunrise,sunset,temperature_2m_max,temperature_2m_min,weather_code" +
+      "&forecast_days=2&temperature_unit=fahrenheit&timezone=auto";
     const res = await fetch(url);
     if (!res.ok) { paintWeather(null); return null; }
     const d = await res.json();
@@ -277,7 +284,7 @@ async function currentWeatherLine() {
     const temp = Math.round(d.current?.temperature_2m);
     if (!Number.isFinite(temp)) { paintWeather(null); return null; }
     const cond = WMO[code]?.label || "unsettled";
-    let line = `${temp}°F, ${cond}`;
+    let line = `NOW: ${temp}°F, ${cond}`;
     const sunset = d.daily?.sunset?.[0] && new Date(d.daily.sunset[0]);
     const sunrise = d.daily?.sunrise?.[0] && new Date(d.daily.sunrise[0]);
     if (sunset && sunrise) {
@@ -288,12 +295,79 @@ async function currentWeatherLine() {
         ? `; ${near[0]} ${near[1] < now ? `was ${mins} min ago` : `in ${mins} min`}`
         : `; ${near[0]} at ${near[1].toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
     }
+
+    // Today's range. Only worth stating when it differs from what's already
+    // outside — "72 now, high of 73" is not news.
+    const high = Math.round(d.daily?.temperature_2m_max?.[0]);
+    const low = Math.round(d.daily?.temperature_2m_min?.[0]);
+    if (Number.isFinite(high) && Number.isFinite(low)) {
+      line += Math.abs(high - temp) >= 3
+        ? `\nTODAY: high ${high}°F, low ${low}°F`
+        : `\nTODAY: low ${low}°F overnight`;
+    }
+
+    const ahead = changeAhead(d, temp);
+    if (ahead) line += `\nNEXT: ${ahead}`;
+
+    // Tomorrow, briefly — something for the late shows to hand over to.
+    const tHigh = Math.round(d.daily?.temperature_2m_max?.[1]);
+    const tCond = WMO[d.daily?.weather_code?.[1]]?.label;
+    if (Number.isFinite(tHigh) && tCond) {
+      line += `\nTOMORROW: ${tCond}, high ${tHigh}°F`;
+    }
+
     paintWeather({ temp, code, cond });
     return line;
   } catch {
     paintWeather(null);
     return null;
   }
+}
+
+// The first genuinely notable change in the next twelve hours: precipitation
+// starting or stopping, or a real temperature swing. Returns null when the
+// afternoon is simply going to carry on as it is — a DJ narrating "no change"
+// is worse than a DJ saying nothing.
+//
+// Reported as a CHANGE, not a table of hourly rows: a real bulletin says "rain
+// moving in around four", never "16:00, 62 degrees".
+function changeAhead(d, nowTemp) {
+  const times = d.hourly?.time || [];
+  const temps = d.hourly?.temperature_2m || [];
+  const pops = d.hourly?.precipitation_probability || [];
+  if (!times.length) return null;
+
+  const now = Date.now();
+  const rows = times
+    .map((t, i) => ({ at: new Date(t).getTime(), temp: temps[i], pop: pops[i] }))
+    .filter((r) => r.at > now && r.at < now + 12 * 3600 * 1000);
+  if (!rows.length) return null;
+
+  const hoursFrom = (ms) => Math.max(1, Math.round((ms - now) / 3600000));
+  const dryNow = !(d.current?.precipitation > 0);
+
+  // Precipitation wins: it's the thing a listener actually acts on.
+  if (dryNow) {
+    const wet = rows.find((r) => r.pop >= 40);
+    if (wet) {
+      const h = hoursFrom(wet.at);
+      return `rain likely ${h <= 1 ? "within the hour" : `in about ${h} hours`} (${wet.pop}% chance)`;
+    }
+  } else {
+    const dry = rows.find((r) => r.pop < 20);
+    if (dry) return `easing off in about ${hoursFrom(dry.at)} hours`;
+  }
+
+  // Otherwise, a temperature swing worth mentioning.
+  let swing = null;
+  for (const r of rows) {
+    if (!Number.isFinite(r.temp)) continue;
+    if (!swing || Math.abs(r.temp - nowTemp) > Math.abs(swing.temp - nowTemp)) swing = r;
+  }
+  if (!swing) return null;
+  const delta = swing.temp - nowTemp;
+  if (Math.abs(delta) < 6) return null;
+  return `${delta > 0 ? "climbing" : "dropping"} to ${Math.round(swing.temp)}°F over the next ${hoursFrom(swing.at)} hours`;
 }
 
 // Condition icon + temperature in the masthead, matching the iOS header.

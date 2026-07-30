@@ -124,10 +124,25 @@ export async function askDJ({ tasteProfile, playedSoFar, listenerRequest = null,
   // Weather is stated on air ONLY when we actually know it. An invented
   // temperature delivered in a confident voice is still a lie.
   const weatherLine = weather
-    ? `- Weather and light right now, verified: ${weather}\n` +
-      "  (The fall of light is often better on-air colour than the temperature.\n" +
-      "  At most one of these per drop.)"
+    ? "- VERIFIED WEATHER. Every figure below is real. You may state any of it on air, and you\n" +
+      "  may state NOTHING beyond it — no invented conditions, no guessed temperatures.\n" +
+      weather.split("\n").map((l) => `    ${l}`).join("\n") + "\n" +
+      "  The fall of light is often better on-air colour than the temperature."
     : "- Weather: UNKNOWN. Never mention weather, temperature, sky conditions, or the sun.";
+
+  // Real stations do two different things with weather, and this one was only
+  // ever doing the first: a passing half-line ("grey out there today"), versus
+  // an actual bulletin that tells you what's coming. Without being asked for
+  // the second it never volunteered one, because every other instruction here
+  // pushes towards brevity.
+  const weatherBulletin = weather
+    ? "- WEATHER UPDATES: once in a while — NOT every block, roughly one block in three — give a\n" +
+      "  proper weather update rather than a passing mention: what it's doing now AND what's\n" +
+      "  coming, using the TODAY / NEXT / TOMORROW figures above. Two sentences at most, in your\n" +
+      "  own voice, attached to one track's intro. A real host does this a few times an hour and\n" +
+      "  then drops it for a while; they don't mention the sky in every single link. When it isn't\n" +
+      "  a full update, a glancing reference to the current conditions is still welcome."
+    : "";
 
   // A REQUIREMENT, not a permission.
   //
@@ -229,6 +244,7 @@ export async function askDJ({ tasteProfile, playedSoFar, listenerRequest = null,
     "STUDIO METADATA:",
     `- Time: ${clock}`,
     weatherLine,
+    weatherBulletin,
     "- Current and upcoming audio: the picks in this block, in order.",
     // A one-track request block gets a single intro that belongs to the
     // request — forcing a time check into it would crowd out the thing the
