@@ -12,6 +12,7 @@ import {
   currentBlock, dayKey, fmtHour, effectiveBlock, currentDJ,
   allMoods, customMoods, upsertMood, deleteMood, newMoodId, MOOD_ICONS,
   setInstantBlock, activeInstantBlock, setOnMoodsSaved,
+  findConflicts, placeBlock,
 } from "./schedule.js";
 import { pullSchedule, pushAll, testSync, markMoodsChanged, markSettingsChanged } from "./sync.js";
 
@@ -621,6 +622,8 @@ function renderSchedule() {
         <h4>${escapeHTML(b.name)}</h4><p>${escapeHTML(b.desc || "")}</p>
       </div>`).join("")}`;
 
+  wireDayPicker();
+
   $("scheduleView").querySelectorAll("[data-day]").forEach((b) =>
     b.addEventListener("click", () => { scheduleDay = b.dataset.day; editingBlock = null; renderSchedule(); }));
   $("scheduleView").querySelectorAll("[data-block]").forEach((el, i) =>
@@ -646,6 +649,11 @@ function blockForm(week, b) {
       <label>To <select id="bEnd">${hours(1, 24, b.end)}</select></label>
       <label>Host <select id="bDJ">${DJS.map((d) => `<option value="${d.id}" ${d.id === b.dj ? "selected" : ""}>${d.name}</option>`).join("")}</select></label>
     </div>
+    <label>Runs on</label>
+    <div class="day-picker">
+      ${DAYS.map((d) => `<button type="button" data-pickday="${d}" class="${d === scheduleDay ? "is-on" : ""}">${DAY_LABELS[d]}</button>`).join("")}
+    </div>
+    <p class="fine day-picker-note" hidden>Saves a copy on each day. Editing one afterwards won't change the others.</p>
     <label>Brief for the host <textarea id="bDesc" rows="4">${escapeHTML(b.desc || "")}</textarea></label>
     <div class="editor-actions">
       <button class="text-btn danger" onclick="window.__delBlock('${b.id}')">Delete</button><span class="grow"></span>
@@ -660,19 +668,85 @@ window.__delBlock = (id) => {
   week[scheduleDay] = (week[scheduleDay] || []).filter((b) => b.id !== id);
   saveSchedule(week); editingBlock = null; renderSchedule();
 };
+// Which days the editor's chips currently have selected. Reset each time the
+// editor opens, so it always starts as "just the day you're looking at".
+let editingDays = null;
+
+function wireDayPicker() {
+  const chips = [...document.querySelectorAll("[data-pickday]")];
+  if (!chips.length) return;
+  editingDays = new Set([scheduleDay]);
+  const note = document.querySelector(".day-picker-note");
+  const sync = () => {
+    chips.forEach((c) => c.classList.toggle("is-on", editingDays.has(c.dataset.pickday)));
+    if (note) note.hidden = editingDays.size < 2;
+  };
+  chips.forEach((c) =>
+    c.addEventListener("click", () => {
+      const d = c.dataset.pickday;
+      // Never let it reach zero days — a show has to run somewhere.
+      if (editingDays.has(d) && editingDays.size > 1) editingDays.delete(d);
+      else editingDays.add(d);
+      sync();
+    })
+  );
+  sync();
+}
+
 window.__saveBlock = (id) => {
   const week = loadSchedule();
   const b = (week[scheduleDay] || []).find((x) => x.id === id);
-  if (b) {
-    b.name = $("bName").value.trim() || "Untitled Show";
-    b.desc = $("bDesc").value.trim();
-    b.start = Number($("bStart").value);
-    b.end = Number($("bEnd").value);
-    b.dj = $("bDJ").value;
-    saveSchedule(week);
+  if (!b) { editingBlock = null; renderSchedule(); return; }
+  const updated = {
+    ...b,
+    name: $("bName").value.trim() || "Untitled Show",
+    desc: $("bDesc").value.trim(),
+    start: Number($("bStart").value),
+    end: Number($("bEnd").value),
+    dj: $("bDJ").value,
+  };
+  const days = DAYS.filter((d) => (editingDays || new Set([scheduleDay])).has(d));
+
+  // Nothing is written until the listener says how to resolve an overlap — a
+  // schedule that silently ate a show would be worse than one that refuses.
+  const clashes = findConflicts(updated, days, week);
+  if (!clashes.length) {
+    saveSchedule(placeBlock(updated, days, week, "makeRoom"));
+    editingBlock = null; renderSchedule();
+    return;
   }
-  editingBlock = null; renderSchedule();
+  showConflictPrompt(updated, days, week, clashes);
 };
+
+function showConflictPrompt(block, days, week, clashes) {
+  const view = $("scheduleView");
+  view.innerHTML = `
+    <div class="block-editor conflict">
+      <h4>that clashes</h4>
+      <p class="fine">“${escapeHTML(block.name)}” ${fmtHour(block.start)}–${fmtHour(block.end)} overlaps
+        ${clashes.length === 1 ? "a show" : `${clashes.length} shows`} already on air:</p>
+      <ul class="clash-list">
+        ${clashes.map((c) => `
+          <li><span class="clash-day">${DAY_LABELS[c.day]}</span>
+            <span class="clash-name">${escapeHTML(c.existing.name)}</span>
+            <span class="mono clash-time">${fmtHour(c.existing.start)}–${fmtHour(c.existing.end)}</span></li>`).join("")}
+      </ul>
+      <button class="solid" id="cRoom">Make room
+        <span>Shortens the shows above so the new one fits. Any swallowed whole is removed.</span></button>
+      <button class="outline" id="cSkip">Skip those days
+        <span>Leaves the clashing days as they are, and adds the show everywhere else.</span></button>
+      <button class="text-btn" id="cCancel">Cancel</button>
+    </div>`;
+  $("cRoom").addEventListener("click", () => {
+    saveSchedule(placeBlock(block, days, week, "makeRoom"));
+    editingBlock = null; renderSchedule();
+  });
+  $("cSkip").addEventListener("click", () => {
+    saveSchedule(placeBlock(block, days, week, "skip"));
+    editingBlock = null; renderSchedule();
+  });
+  $("cCancel").addEventListener("click", () => { editingBlock = null; renderSchedule(); });
+}
 
 $("requestForm").addEventListener("submit", async (e) => {
   e.preventDefault();

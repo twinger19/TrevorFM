@@ -248,3 +248,114 @@ export function currentDJ(date = new Date()) {
   const raw = block?.dj === "ellen" ? "lotus" : block?.dj;
   return DJ_IDS.includes(raw) ? raw : "fred";
 }
+
+// ── Running a show on several days, without overlaps ────────────────────
+//
+// Port of the same engine in Schedule.swift; the two must agree because both
+// write the same synced week.
+//
+// Blocks stay stored per-day: putting one show on Mon/Wed/Fri writes three
+// copies. That keeps the sync format unchanged, and editing Tuesday's copy
+// later doesn't silently rewrite Friday's — usually what you want from "copy
+// this to another day".
+//
+// Overlap is computed on a 168-HOUR WEEK, not per day, because an overnight
+// block genuinely spills into the next one: Monday 22:00–06:00 really does
+// clash with a Tuesday 05:00 show. Comparing hours within a single day would
+// miss exactly the conflicts most likely to bite.
+
+const WEEK_HOURS = 24 * 7;
+
+export function spansOf(day, start, end) {
+  const dayIndex = DAYS.indexOf(day);
+  if (dayIndex < 0) return [];
+  const from = dayIndex * 24 + start;
+  const length = (end > start ? end : end + 24) - start;
+  const to = from + length;
+  if (to <= WEEK_HOURS) return [[from, to]];
+  return [[from, WEEK_HOURS], [0, to - WEEK_HOURS]]; // Sunday night into Monday
+}
+
+function overlaps(a, b) {
+  return a.some(([x0, x1]) => b.some(([y0, y1]) => x0 < y1 && y0 < x1));
+}
+
+// Existing shows the block would collide with if placed on `days`. A block
+// never conflicts with the copy of itself it's about to replace.
+export function findConflicts(block, days, week) {
+  const out = [];
+  const seen = new Set();
+  for (const day of days) {
+    const mine = spansOf(day, block.start, block.end);
+    for (const otherDay of DAYS) {
+      for (const existing of week[otherDay] || []) {
+        if (existing.id && existing.id === block.id) continue;
+        if (!overlaps(mine, spansOf(otherDay, existing.start, existing.end))) continue;
+        const key = existing.id || `${otherDay}:${existing.start}:${existing.name}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({ day: otherDay, existing });
+      }
+    }
+  }
+  return out;
+}
+
+// Shorten `existing` so it no longer touches `blocked`, or drop it if it would
+// be swallowed whole. Hour granularity, so a show trimmed to nothing simply
+// disappears rather than lingering as a zero-length sliver.
+function trim(existing, day, blocked) {
+  const dayIndex = DAYS.indexOf(day);
+  if (dayIndex < 0) return [existing];
+  let free = spansOf(day, existing.start, existing.end);
+  for (const [c0, c1] of blocked) {
+    free = free.flatMap(([s0, s1]) => {
+      if (!(s0 < c1 && c0 < s1)) return [[s0, s1]];
+      const pieces = [];
+      if (s0 < c0) pieces.push([s0, c0]);
+      if (c1 < s1) pieces.push([c1, s1]);
+      return pieces;
+    });
+  }
+  // Keep the longest surviving piece: splitting one show into two on the same
+  // day would be a stranger outcome than shortening it.
+  let keep = null;
+  for (const p of free) if (!keep || p[1] - p[0] > keep[1] - keep[0]) keep = p;
+  if (!keep || keep[1] <= keep[0]) return [];
+  const startHour = (((keep[0] - dayIndex * 24) % 24) + 24) % 24;
+  let endHour = startHour + (keep[1] - keep[0]);
+  if (endHour > 24) endHour -= 24;
+  if (endHour === 0) endHour = 24;
+  return [{ ...existing, start: startHour, end: endHour }];
+}
+
+// Place `block` on every day in `days`. resolution is "makeRoom" or "skip".
+// Returns a new week rather than saving, so the caller can preview.
+export function placeBlock(block, days, week, resolution = "makeRoom") {
+  const out = {};
+  for (const d of DAYS) out[d] = (week[d] || []).filter((b) => !b.id || b.id !== block.id);
+
+  days.forEach((day, i) => {
+    const mine = spansOf(day, block.start, block.end);
+    const clashes = [];
+    for (const otherDay of DAYS) {
+      for (const existing of out[otherDay]) {
+        if (overlaps(mine, spansOf(otherDay, existing.start, existing.end))) {
+          clashes.push([otherDay, existing]);
+        }
+      }
+    }
+    if (resolution === "skip" && clashes.length) return;
+    if (resolution === "makeRoom") {
+      for (const [otherDay, existing] of clashes) {
+        out[otherDay] = out[otherDay].filter((b) => b !== existing);
+        out[otherDay].push(...trim(existing, otherDay, mine));
+      }
+    }
+    // A distinct identity per day, so each copy can be edited or deleted alone.
+    out[day].push({ ...block, id: i === 0 ? block.id : crypto.randomUUID() });
+  });
+
+  for (const d of DAYS) out[d].sort((a, b) => a.start - b.start);
+  return out;
+}

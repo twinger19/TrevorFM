@@ -867,3 +867,61 @@ dialog label input, dialog label select { width: 100%; margin-top: 7px; display:
   .volume { justify-self: start; }
   .waveform { margin: 0 20px; width: calc(100% - 40px); }
 }
+
+/* Day picker in the show editor — pick every day a show runs on. */
+.day-picker { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 7px; }
+.day-picker button {
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 7px 0;
+  background: none;
+  border: 1px solid var(--soft-border);
+  color: var(--muted);
+  cursor: pointer;
+}
+.day-picker button:hover { border-color: var(--ink); color: var(--ink); }
+.day-picker button.is-on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.day-picker-note { margin-top: 6px; }
+
+/* Overlap prompt. Names what's in the way, because choosing between trimming
+   a neighbour and skipping a day only makes sense once you can see which. */
+.block-editor.conflict h4 { font-family: var(--serif); font-size: 19px; font-weight: 800; }
+.clash-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.clash-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--soft-border);
+}
+.clash-day {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  min-width: 34px;
+}
+.clash-name { font-weight: 600; font-size: 14px; }
+.clash-time { font-size: 11px; color: var(--muted); margin-left: auto; }
+.block-editor.conflict button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 12px;
+  cursor: pointer;
+}
+.block-editor.conflict button span {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  margin-top: 2px;
+  opacity: 0.85;
+}
+.block-editor.conflict .solid { background: var(--accent); color: #fff; border: none; }
+.block-editor.conflict .outline { background: none; border: 1px solid var(--ink); color: var(--ink); }
+.block-editor.conflict .text-btn { text-align: center; border: none; background: none; }
