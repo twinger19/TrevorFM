@@ -160,6 +160,40 @@ export async function askDJ({ tasteProfile, playedSoFar, listenerRequest = null,
     : "- ON-AIR CLOCK: at least ONE spoken drop in this block must place the listener in the day — " +
       "the hour, the part of the afternoon, how late it's getting. Not every drop; roughly one in " +
       "three. Weather is UNKNOWN right now, so leave it out entirely.";
+
+  // A REAL DETAIL, not just a title read out.
+  //
+  // Every host's spec already permits a fact — "sometimes include", "may fold
+  // in", "may offer" — and every one ends with an escape hatch ("if unsure,
+  // omit"). Given a permission, a way out, and no floor, a correctly-cautious
+  // model takes the way out every time, and the DJ never says anything a
+  // playlist couldn't.
+  //
+  // One per block rather than one in three: a fact is a bigger swing than a
+  // time check, and trivia on every third song would wear thin faster.
+  //
+  // ACCURACY IS THE POINT. Weather could be checked against Open-Meteo; this
+  // can't be checked against anything, so the guardrails do the work — steer
+  // toward the widely documented, forbid the specifics where invention
+  // actually happens, and always leave a safe exit so the model is never
+  // cornered into making something up.
+  const factLine = [
+    "- ON-AIR COLOUR: at least ONE spoken drop in this block must carry a real detail about",
+    "  the artist, the record, or where it sits in music history — who produced it, what band",
+    "  someone was in before, which album it opens, what scene it came out of, who sampled it",
+    "  later. This is what separates a host who knows their records from one reading a list.",
+    "  Not every drop; one or two in a block is plenty, and it needn't be the same drop as the",
+    "  time or weather — three facts in one breath is a lecture, not radio.",
+    "",
+    "  A CONFIDENT WRONG FACT IS WORSE THAN NO FACT. It goes out in a trusted voice and the",
+    "  listener has no way to check it. So:",
+    "  - Say it only if you are certain. Prefer the widely documented over the obscure.",
+    "  - NEVER invent, and never guess at specifics: exact dates, chart positions, sales",
+    "    figures, studio names, or words quoted to a real person. If the detail needs a number",
+    "    you aren't sure of, tell it without the number.",
+    "  - If nothing certain comes to mind for a track, say something about the MUSIC instead —",
+    "    how it's built, what it does to a room. That is always true and always available.",
+  ].join("\n");
   const bans = bannedTracks();
   const banArtists = bannedArtists();
   const text = [
@@ -250,6 +284,7 @@ export async function askDJ({ tasteProfile, playedSoFar, listenerRequest = null,
     // request — forcing a time check into it would crowd out the thing the
     // listener actually asked for.
     ...(requestOnly ? [] : [cadenceLine]),
+    ...(requestOnly ? [] : [factLine]),
     "",
     ...host.example,
   ].join("\n");
