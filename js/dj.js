@@ -1,7 +1,7 @@
 // The DJ brain. Gemini picks tracks from the full Apple Music catalog based on
 // the listener's taste, the time of day, the scheduled show's brief, and any
 // listener request. Also writes the week's programming when asked.
-import { settings } from "./config.js";
+import { settings, TIME_TOKEN } from "./config.js";
 import { findDJ, DJS } from "./djs.js";
 import { bannedTracks, bannedArtists } from "./taste.js";
 
@@ -198,7 +198,20 @@ export async function askDJ({ tasteProfile, playedSoFar, listenerRequest = null,
   const banArtists = bannedArtists();
   const text = [
     `You are ${djName}, the on-air DJ for a one-listener radio station called ${settings.stationName}.`,
-    `Current slot: ${timeSlot()}. Local time: ${new Date().toLocaleTimeString()}.`,
+    `Current slot: ${timeSlot()}. Local time right now: ${new Date().toLocaleTimeString()} — but see THE CLOCK below.`,
+    "",
+    // Intros for the whole block are written HERE, in one call, and spoken
+    // anywhere from seconds to an hour later depending on track lengths and
+    // skipping. Any time written into the text is wrong on air. The station
+    // substitutes the real clock as each line is spoken.
+    "THE CLOCK: you are writing several intros at once, and they will be spoken at",
+    "different times — possibly much later, possibly sooner if the listener skips ahead.",
+    "So NEVER write a clock time yourself. When a line states the time, write exactly",
+    `${TIME_TOKEN} and the station replaces it with the real clock as the line goes to air.`,
+    `  Right: "It's ${TIME_TOKEN}, and this next one is..."`,
+    `  Wrong: "It's 2:15, and this next one is..."  (that will be wrong by the time it airs)`,
+    'Vague time-of-day wording — "this afternoon", "getting late" — needs no token and is',
+    `always safe. Use ${TIME_TOKEN} only where an actual clock reading belongs.`,
     ...(showBrief
       ? ["", `You are mid-show. The show is "${showBrief.name}" and its brief is: ${showBrief.desc}`, "Program within that brief."]
       : []),

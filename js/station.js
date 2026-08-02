@@ -4,6 +4,7 @@
 // The queue IS the plan. MusicKit plays what we set, in order, so there's
 // nothing to drift — we just keep it topped up before it can run dry.
 import { music } from "./musickit.js";
+import { TIME_TOKEN } from "./config.js";
 import { askDJ } from "./dj.js";
 import { announceOverMusic, talkThenStart, estimateSpeechSeconds, prefetchLine } from "./voice.js";
 import { effectiveBlock, currentDJ } from "./schedule.js";
@@ -65,6 +66,14 @@ const recentArtists = () => {
 // into every prompt would cost more than it saves. Anything older that slips
 // through is still caught locally by recentUris().
 const recentLabels = (cap = 150) => loadHistory().slice(-cap).map((h) => h.label);
+
+// Swap the DJ's {{TIME}} placeholder for the real clock, at the instant the
+// line goes out. The words stay the DJ's; only the number is ours.
+function renderIntro(text) {
+  if (!text.includes(TIME_TOKEN)) return text;
+  const now = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return text.split(TIME_TOKEN).join(now);
+}
 
 export class Station {
   constructor(events) {
@@ -142,8 +151,12 @@ export class Station {
     const host = findDJ(currentDJ());
     if (host.voice.kind === "eleven") {
       for (const t of resolved) {
+        // A line containing {{TIME}} can't be prefetched: the audio would
+        // bake in whatever the clock said at programming time, which is
+        // exactly the staleness this avoids. It synthesises at speak time
+        // instead — a moment slower, but correct.
         const intro = this.introByUri.get(t.uri);
-        if (intro) prefetchLine(intro, host.id);
+        if (intro && !intro.includes(TIME_TOKEN)) prefetchLine(intro, host.id);
       }
     }
     // Drop intros for tracks that left the plan, so the map can't grow forever.
@@ -247,8 +260,9 @@ export class Station {
     const intro = this.introByUri.get(track.uri);
     if (intro) {
       this.introByUri.delete(track.uri);
-      this.events.onDJLine?.(intro, "voice");
-      announceOverMusic(intro, currentDJ());
+      const line = renderIntro(intro);
+      this.events.onDJLine?.(line, "voice");
+      announceOverMusic(line, currentDJ());
     }
     return { track, when: "now" };
   }
@@ -276,9 +290,10 @@ export class Station {
         const intro = this.introByUri.get(item.uri);
         if (intro && !this.announcing) {
           this.introByUri.delete(item.uri);
-          this.events.onDJLine?.(intro, "voice");
-          this.log(`On air: "${intro}"`, "dj");
-          announceOverMusic(intro, currentDJ());
+          const line = renderIntro(intro);
+          this.events.onDJLine?.(line, "voice");
+          this.log(`On air: "${line}"`, "dj");
+          announceOverMusic(line, currentDJ());
         }
       }
 
@@ -318,15 +333,16 @@ export class Station {
     const intro = this.introByUri.get(nextUp.uri);
     if (!intro) return;
 
-    const speechMs = (estimateSpeechSeconds(intro) + 1.2) * 1000;
+    const line = renderIntro(intro);
+    const speechMs = (estimateSpeechSeconds(line) + 1.2) * 1000;
     if (remainingMs > speechMs + 4000) return; // not yet
 
     this.announcing = true;
     this.announcingSince = Date.now();
     this.introByUri.delete(nextUp.uri);
-    this.events.onDJLine?.(intro, "voice");
-    this.log(`On air: "${intro}"`, "dj");
-    talkThenStart(intro, () => {
+    this.events.onDJLine?.(line, "voice");
+    this.log(`On air: "${line}"`, "dj");
+    talkThenStart(line, () => {
       if (music.nowPlaying()?.uri === item.uri) music.skipNext().catch(() => {});
     }, currentDJ()).finally(() => { this.announcing = false; });
   }

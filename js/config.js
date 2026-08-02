@@ -58,3 +58,14 @@ export const settings = {
     else localStorage.removeItem(`tfm_cover_${djId}`);
   },
 };
+
+// Placeholder the DJ writes instead of a clock time.
+//
+// Intros for a whole block are written in one call, then spoken anywhere from
+// seconds to an hour later depending on track lengths and skipping. A time
+// baked into the text is wrong on air. The station swaps this for the real
+// clock at the instant the line is spoken.
+//
+// Lives here rather than in station.js because dj.js needs it too, and
+// station.js already imports dj.js — putting it there would be a cycle.
+export const TIME_TOKEN = "{{TIME}}";
